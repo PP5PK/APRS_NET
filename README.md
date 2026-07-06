@@ -100,6 +100,7 @@ sequenceDiagram
 |------|---------|
 | `pktnet_bot.py` | APRS-IS daemon: receives check-ins, ACKs, logs, replies. Also provides event/check-in management subcommands. |
 | `pktnet_cert.py` | Certificate generator: reads the database and produces one PDF per operator. |
+| `pktnet_radio.png` | Optional stylised radio image drawn faintly in the certificate background. |
 | `pktnet.conf.example` | Configuration template (copy to `/etc/pktnet/pktnet.conf`). |
 | `pktnet.service` | systemd unit for the daemon. |
 
@@ -122,6 +123,10 @@ sequenceDiagram
   # pip install reportlab --break-system-packages
   ```
 
+  The faint background radio image needs Pillow, which `python3-reportlab`
+  normally pulls in. If the image is skipped, install it explicitly with
+  `sudo apt install python3-pil`.
+
 ---
 
 ## Installation
@@ -133,6 +138,8 @@ cd APRS_NET
 # 1. Install the scripts
 sudo install -m 0755 pktnet_bot.py  /usr/local/bin/pktnet_bot.py
 sudo install -m 0755 pktnet_cert.py /usr/local/bin/pktnet_cert.py
+# optional: the certificate background image, next to the generator
+sudo install -m 0644 pktnet_radio.png /usr/local/bin/pktnet_radio.png
 
 # 2. Dedicated system user and data directory
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin pktnet
@@ -240,9 +247,12 @@ pktnet_cert.py -c /etc/pktnet/pktnet.conf --callsign PP5ABC-7
 | `--out` | Output directory (default `./certs`). |
 | `--org` | Issuer / organiser (default `PP5PK`). |
 | `--site` | Issuer website (default `pp5pk.net`). |
+| `--radio` | Background radio image. Defaults to `pktnet_radio.png` next to the script; pass `--radio ''` to disable. |
 
-Certificates are A4 landscape, use a colourblind-safe blue/amber palette, and
-show the event name, date (DD/MM/YYYY) and the operator's check-in time in UTC.
+Certificates are A4 landscape, use a colourblind-safe blue/amber palette
+(Brazilian-flag inspired), and show the event name, date (DD/MM/YYYY) and the
+operator's check-in time in UTC. If `pktnet_radio.png` is present next to the
+generator, it is drawn faintly in the background as a design accent.
 
 ---
 

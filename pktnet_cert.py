@@ -39,6 +39,7 @@ from datetime import datetime, timezone
 from reportlab.lib.colors import HexColor
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 # --------------------------------------------------------------------------- #
@@ -135,6 +136,16 @@ def fmt_time_utc(iso_ts):
 
 def safe_filename(text):
     return re.sub(r"[^A-Za-z0-9._-]", "_", text)
+
+
+def _load_image(path):
+    """Return an ImageReader for `path`, or None if missing/unreadable."""
+    if not path or not os.path.exists(path):
+        return None
+    try:
+        return ImageReader(path)
+    except Exception:
+        return None
 
 
 # --------------------------------------------------------------------------- #
@@ -249,6 +260,16 @@ def draw_certificate(path, ctx):
                        (cx + 98 * mm, height - 60 * mm, 2.0),
                        (cx - 92 * mm, 44 * mm, 1.8)]:
         _draw_star(c, sx, sy, sr, AMBER_LT, 0.85)
+
+    # Stylised radio (left side, raised and roughly vertically centred so it
+    # stays clear of the title, the signature area and the date/time boxes)
+    radio = ctx.get("radio")
+    if radio is not None:
+        iw, ih = radio.getSize()
+        w_img = 84 * mm
+        h_img = w_img * ih / iw
+        c.drawImage(radio, 15 * mm, 84 * mm, width=w_img, height=h_img,
+                    mask="auto", preserveAspectRatio=True, anchor="sw")
 
     # Green outer corner accents (decorative only)
     c.setStrokeColor(GREEN)
@@ -391,6 +412,9 @@ def main():
                     help="output directory (default: ./certs)")
     ap.add_argument("--org", default="PP5PK", help="issuer / organiser")
     ap.add_argument("--site", default="pp5pk.net", help="issuer website")
+    ap.add_argument("--radio",
+                    help="background radio PNG (default: pktnet_radio.png "
+                         "next to this script; pass '' to disable)")
     args = ap.parse_args()
 
     if args.db:
@@ -412,6 +436,14 @@ def main():
     date_br = fmt_date_br(event["event_date"])
     year = (event["event_date"] or "")[:4]
 
+    # Optional stylised radio background (drawn faintly behind the text).
+    if args.radio is not None:
+        radio_path = args.radio
+    else:
+        radio_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "pktnet_radio.png")
+    radio = _load_image(radio_path)
+
     made = 0
     for row in checkins:
         call = row["callsign"]
@@ -425,6 +457,7 @@ def main():
             "checkin_time": fmt_time_utc(row["ts_utc"]),
             "org": args.org,
             "site": args.site,
+            "radio": radio,
         }
         fname = "{}_ev{}_{}.pdf".format(
             safe_filename(event["net_call"]), event["event_id"],
