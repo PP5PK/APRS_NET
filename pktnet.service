@@ -1,0 +1,23 @@
+[Unit]
+Description=PKTNET APRS Net check-in bot
+Documentation=https://github.com/PP5PK
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pktnet
+Group=pktnet
+ExecStart=/usr/local/bin/pktnet_bot.py run --config /etc/pktnet/pktnet.conf
+Restart=on-failure
+RestartSec=10
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/pktnet
+
+[Install]
+WantedBy=multi-user.target
