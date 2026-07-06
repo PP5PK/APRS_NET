@@ -28,7 +28,9 @@ only.
 import argparse
 import configparser
 import csv
+import math
 import os
+import random
 import re
 import sqlite3
 import sys
@@ -40,16 +42,20 @@ from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
 # --------------------------------------------------------------------------- #
-# Colourblind-safe palette (blue / amber)
+# Palette - blue + amber base (both are flag colours) for legibility,
+# green used only as a decorative accent. No red/green contrasts.
 # --------------------------------------------------------------------------- #
 
-BLUE = HexColor("#12395B")      # deep blue - borders, title
-BLUE_LT = HexColor("#2E6CA4")   # lighter blue - callsign
-AMBER = HexColor("#E39A12")     # amber - accent lines, seal
-AMBER_LT = HexColor("#F2C14E")  # light amber
-INK = HexColor("#2B2B2B")       # body text
-MUTED = HexColor("#6B6B6B")     # secondary text
-CREAM = HexColor("#FBF7EF")     # background
+NAVY_TOP = HexColor("#081726")   # dark sky (globe / flag night)
+NAVY = HexColor("#0F3055")       # main navy
+NAVY_MID = HexColor("#15436E")   # lighter centre
+PANEL = HexColor("#0C2949")      # pill / panel fill
+AMBER = HexColor("#EAA31A")      # amber - headings, callsign, frame
+AMBER_LT = HexColor("#F6C560")   # light amber
+GREEN = HexColor("#1F9A57")      # flag green - decorative accents only
+WHITE = HexColor("#F5F8FC")      # primary text
+MUTED = HexColor("#9FB6D2")      # secondary text
+STAR = HexColor("#FFFFFF")       # star field
 
 
 # --------------------------------------------------------------------------- #
@@ -135,104 +141,230 @@ def safe_filename(text):
 # Certificate drawing
 # --------------------------------------------------------------------------- #
 
+def _draw_star(c, x, y, r, color, alpha=1.0):
+    c.setFillColor(color)
+    c.setFillAlpha(alpha)
+    pts = []
+    for i in range(10):
+        ang = math.pi / 2 + i * math.pi / 5
+        rad = r if i % 2 == 0 else r * 0.4
+        pts.append((x + rad * math.cos(ang), y + rad * math.sin(ang)))
+    p = c.beginPath()
+    p.moveTo(*pts[0])
+    for px, py in pts[1:]:
+        p.lineTo(px, py)
+    p.close()
+    c.drawPath(p, fill=1, stroke=0)
+    c.setFillAlpha(1)
+
+
+def _draw_globe(c, cx, cy, r):
+    """Faint wireframe globe: APRS-worldwide + flag celestial-sphere motif."""
+    c.saveState()
+    c.setStrokeColor(HexColor("#3E6FA0"))
+    c.setStrokeAlpha(0.16)
+    c.setLineWidth(0.8)
+    c.circle(cx, cy, r, stroke=1, fill=0)
+    for k in range(1, 4):                       # parallels
+        dy = r * k / 4.0
+        hw = math.sqrt(max(r * r - dy * dy, 0))
+        for yy in (cy + dy, cy - dy):
+            c.ellipse(cx - hw, yy - 2.2, cx + hw, yy + 2.2, stroke=1, fill=0)
+    c.ellipse(cx - r, cy - 2.6, cx + r, cy + 2.6, stroke=1, fill=0)  # equator
+    for k in range(1, 4):                       # meridians
+        hw = r * k / 4.0
+        c.ellipse(cx - hw, cy - r, cx + hw, cy + r, stroke=1, fill=0)
+    c.ellipse(cx - 0.6, cy - r, cx + 0.6, cy + r, stroke=1, fill=0)
+    c.restoreState()
+
+
+def _corner_bracket(c, x, y, dx, dy, size, color, lw=2.4):
+    c.setStrokeColor(color)
+    c.setLineWidth(lw)
+    c.line(x, y, x + dx * size, y)
+    c.line(x, y, x, y + dy * size)
+
+
+def _calendar_icon(c, x, y, s, color):
+    c.saveState()
+    c.setStrokeColor(color)
+    c.setLineWidth(1.4)
+    c.roundRect(x, y, s, s * 0.86, 1.5, stroke=1, fill=0)
+    c.line(x, y + s * 0.62, x + s, y + s * 0.62)
+    c.line(x + s * 0.28, y + s * 0.86, x + s * 0.28, y + s)
+    c.line(x + s * 0.72, y + s * 0.86, x + s * 0.72, y + s)
+    c.restoreState()
+
+
+def _clock_icon(c, x, y, s, color):
+    c.saveState()
+    c.setStrokeColor(color)
+    c.setLineWidth(1.4)
+    r = s / 2.0
+    c.circle(x + r, y + r, r, stroke=1, fill=0)
+    c.line(x + r, y + r, x + r, y + r + r * 0.55)
+    c.line(x + r, y + r, x + r + r * 0.45, y + r)
+    c.restoreState()
+
+
+def _chip(c, x, y, w, h, label, value, icon):
+    c.setStrokeColor(AMBER)
+    c.setStrokeAlpha(0.55)
+    c.setLineWidth(1.2)
+    c.roundRect(x, y, w, h, 4, stroke=1, fill=0)
+    c.setStrokeAlpha(1)
+    icon(c, x + 7 * mm, y + h / 2 - 4.2 * mm, 8.4 * mm, AMBER)
+    c.setFillColor(MUTED)
+    c.setFont("Helvetica", 8)
+    c.drawString(x + 21 * mm, y + h - 6 * mm, label)
+    c.setFillColor(WHITE)
+    c.setFont("Courier-Bold", 15)
+    c.drawString(x + 21 * mm, y + 4.5 * mm, value)
+
+
 def draw_certificate(path, ctx):
-    """Render a single certificate page to `path`."""
+    """Render a single Brazil/APRS themed certificate page to `path`."""
     page = landscape(A4)
     width, height = page
     cx = width / 2.0
     c = canvas.Canvas(path, pagesize=page)
 
-    # Background
-    c.setFillColor(CREAM)
-    c.rect(0, 0, width, height, stroke=0, fill=1)
+    # Navy background gradient
+    c.radialGradient(cx, height * 0.58, width * 0.75,
+                     (NAVY_MID, NAVY, NAVY_TOP), (0.0, 0.55, 1.0))
 
-    # Outer blue frame
-    c.setStrokeColor(BLUE)
+    # Globe motif
+    _draw_globe(c, cx, height * 0.55, 82 * mm)
+
+    # Star field (deterministic)
+    rng = random.Random(2026)
+    for _ in range(70):
+        sx = rng.uniform(20 * mm, width - 20 * mm)
+        sy = rng.uniform(20 * mm, height - 20 * mm)
+        c.setFillColor(STAR)
+        c.setFillAlpha(rng.uniform(0.15, 0.7))
+        c.circle(sx, sy, rng.uniform(0.3, 1.1), stroke=0, fill=1)
+    c.setFillAlpha(1)
+    for sx, sy, sr in [(cx - 96 * mm, height - 45 * mm, 2.6),
+                       (cx + 98 * mm, height - 60 * mm, 2.0),
+                       (cx - 92 * mm, 44 * mm, 1.8)]:
+        _draw_star(c, sx, sy, sr, AMBER_LT, 0.85)
+
+    # Green outer corner accents (decorative only)
+    c.setStrokeColor(GREEN)
     c.setLineWidth(3)
-    c.rect(14 * mm, 14 * mm, width - 28 * mm, height - 28 * mm, stroke=1, fill=0)
+    m = 8 * mm
+    for (x, y, dx, dy) in [(m, m, 1, 1), (width - m, m, -1, 1),
+                           (m, height - m, 1, -1),
+                           (width - m, height - m, -1, -1)]:
+        c.line(x, y, x + dx * 26 * mm, y)
+        c.line(x, y, x, y + dy * 26 * mm)
 
-    # Inner amber frame
+    # Amber tech frame + corner brackets
     c.setStrokeColor(AMBER)
-    c.setLineWidth(1.2)
-    c.rect(17 * mm, 17 * mm, width - 34 * mm, height - 34 * mm, stroke=1, fill=0)
+    c.setLineWidth(1.6)
+    c.roundRect(13 * mm, 13 * mm, width - 26 * mm, height - 26 * mm, 6,
+                stroke=1, fill=0)
+    for (x, y, dx, dy) in [(13 * mm, 13 * mm, 1, 1),
+                           (width - 13 * mm, 13 * mm, -1, 1),
+                           (13 * mm, height - 13 * mm, 1, -1),
+                           (width - 13 * mm, height - 13 * mm, -1, -1)]:
+        _corner_bracket(c, x, y, dx, dy, 12 * mm, AMBER_LT)
 
-    # Net tag (top, monospace-like)
-    c.setFillColor(BLUE_LT)
-    c.setFont("Courier-Bold", 13)
-    c.drawCentredString(cx, height - 34 * mm, ctx["net_call"] + "  \u2022  APRS NET")
+    # Top tag
+    c.setFillColor(AMBER)
+    c.setFont("Courier-Bold", 12)
+    c.drawCentredString(cx, height - 30 * mm,
+                        "{}  \u2022  APRS NET  \u2022  BRAZIL".format(ctx["net_call"]))
 
-    # Title
-    c.setFillColor(BLUE)
-    c.setFont("Helvetica-Bold", 30)
-    c.drawCentredString(cx, height - 48 * mm, "CERTIFICADO DE PARTICIPA\u00c7\u00c3O")
+    # Title (English)
+    c.setFillColor(WHITE)
+    c.setFont("Helvetica-Bold", 34)
+    c.drawCentredString(cx, height - 47 * mm, "CERTIFICATE OF PARTICIPATION")
 
-    # Amber divider under the title
     c.setStrokeColor(AMBER)
-    c.setLineWidth(2)
-    c.line(cx - 55 * mm, height - 52 * mm, cx + 55 * mm, height - 52 * mm)
+    c.setLineWidth(1.5)
+    c.line(cx - 52 * mm, height - 53 * mm, cx + 52 * mm, height - 53 * mm)
 
-    # Lead line
     c.setFillColor(MUTED)
-    c.setFont("Helvetica", 13)
-    c.drawCentredString(cx, height - 64 * mm, "Certificamos que a esta\u00e7\u00e3o")
+    c.setFont("Helvetica-Oblique", 11.5)
+    c.drawCentredString(cx, height - 63 * mm, "This is to certify that")
 
-    # Callsign (hero)
-    c.setFillColor(BLUE_LT)
-    c.setFont("Helvetica-Bold", 40)
-    c.drawCentredString(cx, height - 82 * mm, ctx["callsign"])
+    # Callsign hero
+    c.setFillColor(AMBER)
+    c.setFont("Courier-Bold", 42)
+    c.drawCentredString(cx, height - 84 * mm, ctx["callsign"])
 
-    # Operator name (optional)
-    line_y = height - 82 * mm
+    line_y = height - 84 * mm
     if ctx.get("op_name"):
-        c.setFillColor(INK)
-        c.setFont("Helvetica-Oblique", 15)
-        c.drawCentredString(cx, height - 90 * mm, ctx["op_name"])
-        line_y = height - 90 * mm
+        c.setFillColor(WHITE)
+        c.setFont("Helvetica-Oblique", 14)
+        c.drawCentredString(cx, height - 92 * mm, ctx["op_name"])
+        line_y = height - 92 * mm
 
-    # Body sentence
-    c.setFillColor(INK)
-    c.setFont("Helvetica", 13.5)
-    body = ("participou da {event}, realizada em {date},"
-            .format(event=ctx["event_name"], date=ctx["date_br"]))
-    c.drawCentredString(cx, line_y - 12 * mm, body)
-    c.drawCentredString(
-        cx, line_y - 19 * mm,
-        "com check-in registrado \u00e0s {t} UTC.".format(t=ctx["checkin_time"]))
-
-    # Signature block (left) + issue info (right)
-    base_y = 30 * mm
-    c.setStrokeColor(BLUE)
-    c.setLineWidth(1)
-    c.line(cx - 78 * mm, base_y, cx - 28 * mm, base_y)
-    c.setFillColor(INK)
-    c.setFont("Helvetica-Bold", 12)
-    c.drawCentredString(cx - 53 * mm, base_y - 5 * mm, ctx["org"])
+    # Body
+    c.setFillColor(WHITE)
+    c.setFont("Helvetica", 12.5)
+    c.drawCentredString(cx, line_y - 12 * mm,
+                        "has successfully participated in {}".format(ctx["event_name"]))
     c.setFillColor(MUTED)
-    c.setFont("Helvetica", 9.5)
-    c.drawCentredString(cx - 53 * mm, base_y - 10 * mm, "Organiza\u00e7\u00e3o  \u2022  " + ctx["site"])
+    c.setFont("Helvetica-Oblique", 10)
+    c.drawCentredString(cx, line_y - 18 * mm,
+                        "Connecting the amateur radio community through APRS")
 
-    # Seal (right)
-    seal_x, seal_y, r = cx + 55 * mm, base_y + 6 * mm, 15 * mm
+    # Date / time chips
+    chip_w, chip_h, gap = 78 * mm, 18 * mm, 12 * mm
+    x0 = cx - (chip_w * 2 + gap) / 2
+    _chip(c, x0, 64 * mm, chip_w, chip_h, "DATE",
+          ctx["date_br"], _calendar_icon)
+    _chip(c, x0 + chip_w + gap, 64 * mm, chip_w, chip_h, "TIME (UTC)",
+          ctx["checkin_time"] + "z", _clock_icon)
+
+    # Motto pill (amateur radio)
+    pill_w, pill_h = 84 * mm, 8.5 * mm
+    c.setStrokeColor(AMBER)
+    c.setFillColor(PANEL)
+    c.setLineWidth(1.2)
+    c.roundRect(cx - pill_w / 2, 48 * mm, pill_w, pill_h, pill_h / 2,
+                stroke=1, fill=1)
+    c.setFillColor(AMBER_LT)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawCentredString(cx, 50.4 * mm, "CQ CQ CQ  \u2022  CALLING THE WORLD")
+
+    # Footer: issuer (left) / website (centre) / seal (right)
+    base_y = 22 * mm
+    c.setStrokeColor(WHITE)
+    c.setStrokeAlpha(0.5)
+    c.setLineWidth(0.8)
+    c.line(cx - 90 * mm, base_y + 4 * mm, cx - 50 * mm, base_y + 4 * mm)
+    c.setStrokeAlpha(1)
+    c.setFillColor(MUTED)
+    c.setFont("Helvetica", 8)
+    c.drawCentredString(cx - 70 * mm, base_y + 6 * mm, "ISSUED BY")
+    c.setFillColor(WHITE)
+    c.setFont("Courier-Bold", 12)
+    c.drawCentredString(cx - 70 * mm, base_y - 1 * mm, ctx["org"])
+
+    c.setFillColor(MUTED)
+    c.setFont("Helvetica", 8)
+    c.drawCentredString(cx - 10 * mm, base_y + 6 * mm, "WEBSITE")
+    c.setFillColor(WHITE)
+    c.setFont("Courier-Bold", 12)
+    c.drawCentredString(cx - 10 * mm, base_y - 1 * mm, ctx["site"])
+
+    seal_x, seal_y, r = cx + 66 * mm, 31 * mm, 14 * mm
     c.setStrokeColor(AMBER)
     c.setLineWidth(2)
     c.circle(seal_x, seal_y, r, stroke=1, fill=0)
-    c.setStrokeColor(AMBER_LT)
+    c.setStrokeColor(GREEN)
     c.setLineWidth(1)
-    c.circle(seal_x, seal_y, r - 2.2 * mm, stroke=1, fill=0)
-    c.setFillColor(BLUE)
+    c.circle(seal_x, seal_y, r - 2.4 * mm, stroke=1, fill=0)
+    c.setFillColor(AMBER)
     c.setFont("Courier-Bold", 11)
-    c.drawCentredString(seal_x, seal_y + 1.5 * mm, ctx["net_call"])
+    c.drawCentredString(seal_x, seal_y + 1.4 * mm, ctx["net_call"])
     c.setFillColor(MUTED)
-    c.setFont("Helvetica", 7.5)
-    c.drawCentredString(seal_x, seal_y - 4 * mm, ctx["year"])
-
-    # Footer note
-    c.setFillColor(MUTED)
-    c.setFont("Helvetica", 8)
-    c.drawCentredString(
-        cx, 20 * mm,
-        "Emitido em {} UTC".format(
-            datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M")))
+    c.setFont("Helvetica", 7)
+    c.drawCentredString(seal_x, seal_y - 4.4 * mm, ctx["year"])
 
     c.showPage()
     c.save()
