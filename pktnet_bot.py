@@ -113,6 +113,27 @@ def _fmt_duration(td):
     return "{}h{:02d}m".format(hours, minutes) if hours else "{}m".format(minutes)
 
 
+def parse_command(text):
+    """Parse a remote-control message into (action, argument).
+
+    The command is the first word (case-insensitive, optional [brackets]); the
+    rest is an optional argument with its own surrounding brackets stripped.
+    Returns (None, "") when the first word is not a known command.
+    Examples:
+      "[CHECK_#]"                 -> ("status", "")
+      "CHECK_START [Rede da Serra]"-> ("start", "Rede da Serra")
+      "check_start minha rede"    -> ("start", "minha rede")
+    """
+    parts = text.strip().split(None, 1)
+    if not parts:
+        return None, ""
+    action = COMMAND_ALIASES.get(parts[0].strip("[]").strip().upper())
+    if action is None:
+        return None, ""
+    arg = parts[1].strip().strip("[]").strip() if len(parts) > 1 else ""
+    return action, arg
+
+
 # --------------------------------------------------------------------------- #
 # Configuration
 # --------------------------------------------------------------------------- #
@@ -528,12 +549,12 @@ class PktNetBot:
             self._send_raw(build_ack(self.cfg["net_call"], source, msgno))
 
         # Remote-control command?
-        action = COMMAND_ALIASES.get(text.strip().strip("[]").strip().upper())
+        action, arg = parse_command(text)
         if action:
             is_admin = base_call(source) in self.cfg["admin_calls"]
             if action in PUBLIC_ACTIONS or (action in ADMIN_ACTIONS and is_admin):
                 LOG.info("Command %s from %s", action, source)
-                self._handle_command(source, action, is_admin)
+                self._handle_command(source, action, is_admin, arg)
                 return
             # recognised admin command from a non-admin: treat as a check-in
 
@@ -541,7 +562,7 @@ class PktNetBot:
 
     # -- remote control ---------------------------------------------------- #
 
-    def _handle_command(self, source, action, is_admin):
+    def _handle_command(self, source, action, is_admin, arg=""):
         now = datetime.now(timezone.utc)
         now_iso = now.isoformat()
         conn = self.conn
@@ -569,9 +590,11 @@ class PktNetBot:
                 return
             calls = last_checkin_calls(conn, event["event_id"], 5)
             if not calls:
-                self._enqueue_reply(source, "No check-ins yet.")
+                self._enqueue_reply(source, "{}: no check-ins yet".format(
+                    event["name"]))
                 return
-            for line in self._pack(calls, prefix="Last: "):
+            for line in self._pack(calls, prefix="{} last: ".format(
+                    event["name"])):
                 self._enqueue_reply(source, line)
             return
 
@@ -620,7 +643,7 @@ class PktNetBot:
                 return
             date_str = now.strftime("%Y-%m-%d")
             end = now.replace(hour=23, minute=59, second=59, microsecond=0)
-            name = "PKTNET Net " + date_str
+            name = arg[:40].strip() if arg else "PKTNET Net " + date_str
             create_daily_net(conn, name, date_str, now_iso, end.isoformat(),
                              self.cfg["net_call"])
             LOG.info("Net started by %s: %s", source, name)

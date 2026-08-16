@@ -314,7 +314,7 @@ Any unrecognised text is treated as a normal check-in.
 | Command | Action |
 |---------|--------|
 | `CHECK_USERS` | List every callsign in the active net (split across messages if long). |
-| `CHECK_START` | Start a net for today (until 23:59:59 UTC), regardless of `require_active_event`. |
+| `CHECK_START [name]` | Start a net for today (until 23:59:59 UTC), regardless of `require_active_event`. An optional name follows the command (`CHECK_START Rede da Serra`); without one it is named by date. |
 | `CHECK_STOP` | End the active net now. |
 | `CHECK_PAUSE` | Pause the net; check-ins get the `paused_text` maintenance reply and are not logged. |
 | `CHECK_RESTART` | Resume a paused net. |
