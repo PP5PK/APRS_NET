@@ -8,7 +8,7 @@ Wants=network-online.target
 Type=simple
 User=pktnet
 Group=pktnet
-ExecStart=/opt/apnet/pktnet_bot.py run --config /etc/pktnet/pktnet.conf
+ExecStart=/opt/APRS_NET/pktnet_bot.py run --config /etc/pktnet/pktnet.conf
 Restart=on-failure
 RestartSec=10
 

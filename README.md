@@ -103,7 +103,7 @@ sequenceDiagram
 | `pktnet_radio.png` | Optional stylised radio image drawn faintly in the certificate background. |
 | `pktnet.conf.example` | Configuration template (copy to `/etc/pktnet/pktnet.conf`). |
 | `pktnet.service` | systemd unit for the daemon. |
-| `install.sh` | Centralised installer (code in `/opt/apnet`, config/data in place). |
+| `install.sh` | Centralised installer (code in `/opt/APRS_NET`, config/data in place). |
 | `uninstall.sh` | Removes the service and code (keeps config/data unless `--purge`). |
 
 ---
@@ -135,15 +135,15 @@ sequenceDiagram
 
 ### Quick install (recommended)
 
-`install.sh` places everything in its proper place: code in `/opt/apnet`,
+`install.sh` places everything in its proper place: code in `/opt/APRS_NET`,
 configuration in `/etc/pktnet`, data in `/var/lib/pktnet`, a systemd unit
 generated with the correct paths, and `pktnet_bot` / `pktnet_cert` CLI symlinks
 in `/usr/local/bin`. It is safe to re-run to upgrade — config and data are
 preserved.
 
 ```bash
-sudo git clone https://github.com/PP5PK/APRS_NET.git /opt/apnet
-cd /opt/apnet
+sudo git clone https://github.com/PP5PK/APRS_NET.git /opt/APRS_NET
+cd /opt/APRS_NET
 chmod +x install.sh
 sudo ./install.sh --dry-run     # optional: preview every action
 sudo ./install.sh               # do the install
@@ -153,10 +153,10 @@ sudo systemctl start pktnet.service
 sudo journalctl -u pktnet -f
 ```
 
-Because it is a git clone in `/opt/apnet`, updating later is just:
+Because it is a git clone in `/opt/APRS_NET`, updating later is just:
 
 ```bash
-cd /opt/apnet && sudo git pull && sudo ./install.sh
+cd /opt/APRS_NET && sudo git pull && sudo ./install.sh
 ```
 
 Options: `--dir DIR` (install elsewhere), `--no-deps` (skip reportlab),
@@ -167,20 +167,20 @@ Options: `--dir DIR` (install elsewhere), `--no-deps` (skip reportlab),
 If you prefer to do it by hand, the equivalent steps are:
 
 ```bash
-sudo git clone https://github.com/PP5PK/APRS_NET.git /opt/apnet
+sudo git clone https://github.com/PP5PK/APRS_NET.git /opt/APRS_NET
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin pktnet
 sudo mkdir -p /etc/pktnet /var/lib/pktnet
 sudo chown pktnet:pktnet /var/lib/pktnet
 
-sudo cp /opt/apnet/pktnet.conf.example /etc/pktnet/pktnet.conf
+sudo cp /opt/APRS_NET/pktnet.conf.example /etc/pktnet/pktnet.conf
 sudo chown root:pktnet /etc/pktnet/pktnet.conf
 sudo chmod 0640 /etc/pktnet/pktnet.conf
 sudo nano /etc/pktnet/pktnet.conf         # fill in your passcode
 
 sudo apt install python3-reportlab        # for certificates
-sudo ln -sf /opt/apnet/pktnet_cert.py /usr/local/bin/pktnet_cert
+sudo ln -sf /opt/APRS_NET/pktnet_cert.py /usr/local/bin/pktnet_cert
 
-# systemd unit pointing at the /opt/apnet code
+# systemd unit pointing at the /opt/APRS_NET code
 sudo tee /etc/systemd/system/pktnet.service >/dev/null <<'UNIT'
 [Unit]
 Description=PKTNET APRS Net check-in bot
@@ -191,7 +191,7 @@ Wants=network-online.target
 Type=simple
 User=pktnet
 Group=pktnet
-ExecStart=/opt/apnet/pktnet_bot.py run --config /etc/pktnet/pktnet.conf
+ExecStart=/opt/APRS_NET/pktnet_bot.py run --config /etc/pktnet/pktnet.conf
 Restart=on-failure
 RestartSec=10
 NoNewPrivileges=true
@@ -224,7 +224,7 @@ sudo ./uninstall.sh              # remove service + code, keep config/data
 sudo ./uninstall.sh --purge      # also remove /etc/pktnet, /var/lib/pktnet, user
 ```
 
-Use `--dir DIR` if the code was installed somewhere other than `/opt/apnet`.
+Use `--dir DIR` if the code was installed somewhere other than `/opt/APRS_NET`.
 
 ---
 

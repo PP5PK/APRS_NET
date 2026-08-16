@@ -7,7 +7,7 @@
 # are KEPT unless --purge is given.
 #
 # Handles both layouts:
-#   - centralised install in /opt/apnet (+ symlink in /usr/local/bin)
+#   - centralised install in /opt/APRS_NET (+ symlink in /usr/local/bin)
 #   - legacy scattered copies in /usr/local/bin
 #
 # Usage:
@@ -16,7 +16,7 @@
 set -euo pipefail
 
 # --- defaults -------------------------------------------------------------- #
-INSTALL_DIR="/opt/apnet"
+INSTALL_DIR="/opt/APRS_NET"
 SERVICE="pktnet.service"
 UNIT_PATH="/etc/systemd/system/${SERVICE}"
 CONF_DIR="/etc/pktnet"

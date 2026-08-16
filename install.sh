@@ -3,7 +3,7 @@
 # install.sh - APRS_NET (PKTNET) installer
 #
 # Centralised install:
-#   code   -> /opt/apnet           (single source of truth)
+#   code   -> /opt/APRS_NET           (single source of truth)
 #   config -> /etc/pktnet          (FHS: host configuration)
 #   data   -> /var/lib/pktnet      (FHS: application state / database)
 #   service-> /etc/systemd/system/pktnet.service (generated with correct paths)
@@ -18,7 +18,7 @@
 set -euo pipefail
 
 # --- defaults -------------------------------------------------------------- #
-INSTALL_DIR="/opt/apnet"
+INSTALL_DIR="/opt/APRS_NET"
 SERVICE="pktnet.service"
 UNIT_PATH="/etc/systemd/system/${SERVICE}"
 CONF_DIR="/etc/pktnet"
