@@ -4,7 +4,7 @@
 
 [aprsis]
 # A tier-2 rotate works; for Brazil you may prefer a regional pool.
-server = rotate.aprs2.net
+server = firenet.us
 port = 14580
 
 # Verified login identity for the connection. The passcode is derived from
