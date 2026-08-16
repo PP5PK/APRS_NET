@@ -348,6 +348,11 @@ retransmitting), but the relayed copies delivered to each member are sent
 `min_interval` throttles how often one member's messages are relayed. `JOIN`,
 `LEAVE`, `WHO` and `HELP` are reserved words and are not relayed as chat.
 
+> **Scale note.** Each room message becomes one packet per member (fan-out), so
+> the room is best kept to tens of members and, ideally, APRS-IS side rather than
+> gated to RF. For very large groups the shared ANSRVR service is the usual
+> alternative.
+
 ### Certificates
 
 ```bash
