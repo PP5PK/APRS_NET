@@ -1,454 +1,208 @@
-# APRS_NET
+# 📟 E-Paper HAT+ Applications for Raspberry Pi
 
-![python](https://img.shields.io/badge/python-3.9%2B-12395B)
-![APRS](https://img.shields.io/badge/APRS-Net-E39A12)
-![license](https://img.shields.io/badge/license-MIT-12395B)
+A growing collection of Python applications for the **WaveShare 2.13" E-Paper HAT+** on Raspberry Pi (both [HAT](https://www.waveshare.com/2.13inch-e-Paper-HAT.htm) and [HAT+](https://www.waveshare.com/2.13inch-e-Paper-HAT-Plus.htm)). Each app is self-contained, uses partial refresh for smooth updates, and is designed to run as a systemd service.
 
-An **APRS net check-in bot** in the style of **#APRSThursday**, plus a matching
-**PDF certificate generator**.
-
-Operators send an APRS message to a special net callsign (e.g. `PKTNET`). The
-bot acknowledges each message, logs the check-in to a local SQLite database, and
-replies with a short confirmation. After the net, a companion tool turns the
-logged check-ins into one participation certificate per operator, showing the
-event name, date and check-in time.
-
-It is designed to run on a Raspberry Pi, alongside an existing Direwolf
-digipeater/igate, and uses only the Python standard library for the bot itself
-(the certificate generator adds `reportlab`).
+> Maintained by **PP5PK** — Mafra, Santa Catarina, Brazil 🇧🇷
 
 ---
 
-## Table of contents
+## Hardware - [2.13inch E-Paper HAT](https://www.waveshare.com/wiki/2.13inch_e-Paper_HAT) & [HAT+](https://www.waveshare.com/wiki/2.13inch_e-Paper_HAT+)
 
-- [Features](#features)
-- [How it works](#how-it-works)
-- [Components](#components)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Usage](#usage)
-  - [The daemon](#the-daemon)
-  - [Managing events](#managing-events)
-  - [Certificates](#certificates)
-- [Database schema](#database-schema)
-- [Operational notes](#operational-notes)
-- [Roadmap](#roadmap)
-- [Credits](#credits)
-- [License](#license)
+| Item | Details |
+|---|---|
+| Display | WaveShare 2.13" E-Paper HAT+ |
+| Resolution | 250 × 122 px |
+| Colors | Black & White |
+| Interface | SPI |
+| Partial refresh | ~0.3 s |
+| Full refresh | ~2 s |
+| Driver | `epd2in13_V4` |
+
+> ⚠️ This repository targets the **HAT+** variant specifically. The older HAT (tricolor, `epd2in13b_V4`) uses a different driver and does **not** support partial refresh.
 
 ---
 
-## Features
+## Applications
 
-- Connects to **APRS-IS** with a verified login and a group-message filter, so
-  it receives every message addressed to the net callsign — from RF or the
-  Internet.
-- Sends a proper **APRS ACK** for every message that carries a line number.
-- Logs check-ins to **SQLite**, one per operator per event (`UNIQUE` constraint
-  handles duplicates automatically).
-- Replies with a configurable **confirmation** that includes the operator's
-  callsign for station identification.
-- **Event windows**: check-ins can be restricted to a scheduled time window, or
-  the bot can run always-on with an auto-created daily event.
-- **Reliable messaging**: outgoing replies carry a line number and are
-  retransmitted until acknowledged, with automatic reconnection and keepalive.
-- **Certificate generator**: one PDF per operator, colourblind-safe blue/amber
-  palette, optional operator names from a CSV.
-- **Standard library only** for the bot. No external services, no cloud.
+### 🕐 Station Monitor — `station_monitor.py`
 
----
+A real-time system dashboard showing clock, date, and live hardware metrics.
 
-## How it works
+**Display layout:**
 
-- The bot logs in to APRS-IS **verified** with your callsign and passcode (for
-  example `PP5PK-3`) and subscribes to the net callsign with the group filter
-  `g/PKTNET`.
-- Incoming messages addressed to the net callsign are delivered to the bot by
-  that filter, regardless of whether they originated on RF or on the Internet.
-- ACKs and replies are **injected with the net callsign as the source**
-  (`PKTNET`), so the operator sees the whole exchange coming from the net. The
-  verified login is what authorises that injection — the same mechanism an igate
-  uses to inject packets on behalf of other stations.
-- If you already run an igate that bridges RF and APRS-IS, a bot living purely on
-  APRS-IS already reaches your local RF users: their messages are gated up to the
-  Internet, the bot answers, and the ACK is gated back down to RF.
+![Monitor](https://cloud.dvbr.net/images/e-paper_monitor.jpg)
 
-```mermaid
-sequenceDiagram
-    participant Op as Operator (RF or IS)
-    participant IS as APRS-IS
-    participant Bot as APRS_NET bot (login PP5PK-3)
-    participant DB as SQLite
-    Op->>IS: message addressed to PKTNET
-    IS->>Bot: delivered via g/PKTNET filter
-    Bot->>IS: ACK (source PKTNET)
-    Bot->>DB: record check-in (one per operator per event)
-    Bot->>IS: confirmation reply (source PKTNET)
-    IS->>Op: ACK + confirmation
+**Features:**
+- Clock with seconds, updated every 1 s via partial refresh
+- CPU usage, RAM usage, CPU temperature, disk usage
+- System hostname, IP address and operator callsign
+- Background thread for collecting metrics (non-blocking)
+- `--black` flag to invert colors (white text on black background)
+- Automatic color inversion every 30 min to prevent permanent ghosting
+- Full refresh every 10 min for display health
+- Graceful shutdown screen on exit
+
+**Usage:**
+```bash
+sudo python3 station_monitor.py            # white background (default)
+sudo python3 station_monitor.py --black    # black background
+sudo python3 station_monitor.py --simulate # save preview to /tmp/epd_preview.png
+sudo python3 station_monitor.py --once     # single refresh and exit
 ```
 
-> **Station identification.** Because replies are sourced as the net callsign,
-> the default confirmation text includes your real callsign (`PP5PK`) so the
-> station remains identified. Keep your callsign in the reply templates.
-
 ---
 
-## Components
+### 📡 XLX Reflector Dashboard — `xlx_monitor.py`
 
-| File | Purpose |
-|------|---------|
-| `pktnet_bot.py` | APRS-IS daemon: receives check-ins, ACKs, logs, replies. Also provides event/check-in management subcommands. |
-| `pktnet_cert.py` | Certificate generator: reads the database and produces one PDF per operator. |
-| `pktnet_radio.png` | Optional stylised radio image drawn faintly in the certificate background. |
-| `pktnet.conf.example` | Configuration template (copy to `/etc/pktnet/pktnet.conf`). |
-| `pktnet.service` | systemd unit for the daemon. |
-| `install.sh` | Centralised installer (code in `/opt/APRS_NET`, config/data in place). |
-| `uninstall.sh` | Removes the service and code (keeps config/data unless `--purge`). |
+A live dashboard for [XLX](https://github.com/PP5PK/XLX_Installer) D-Star/YSF/DMR reflectors. Reads the xlxd status XML in real time and displays last heard stations and connected clients — including activity relayed from linked reflectors.
 
----
+**Display layout:**
 
-## Requirements
+![XLXBRA](https://cloud.dvbr.net/images/e-paper_XLXBRA.jpg)
 
-- **Python 3.9+** (standard library only for the bot).
-- An **amateur radio licence**, a callsign, and an **APRS-IS passcode**
-  (the passcode is derived from your base callsign, so it is the same with or
-  without an SSID). You can generate one with any APRS-IS passcode tool, e.g.
-  <https://aprs.dvbr.net>.
-- **`reportlab`** for the certificate generator only. On Raspberry Pi OS /
-  Debian, install it from apt to avoid the pip *externally-managed-environment*
-  restriction:
+**Features:**
+- Last heard stations with real operator callsign, gateway (+ `via <REFLECTOR>` when relayed from a linked reflector), module and time (right-aligned)
+- Connected-clients counter (`[NN]`) next to the reflector name in the header
+- Connected clients/gateways listed with protocol (e.g. `PP5PK-A DCS / PU6AXE DPlus`)
+- Reads `/var/log/xlxd.xml` only — no xlxd log-file parsing, no correlation between data sources
+- Reflector name detected automatically, preferring the `xlxd.service` unit (`ExecStart=`) with the XML itself as fallback
+- Dynamic layout: header and footer are anchored to the top/bottom edges, and the last-heard section expands to use whatever space the connected-clients list doesn't need
+- Clock updated every 1 s via partial refresh
+- Background XML reader thread (non-blocking)
+- `--black` flag for inverted color scheme
+- `--off` flag to blank the display (white, or black with `--black`) and put the hardware to sleep
+- Automatic color inversion every 30 min (anti-ghosting)
+- Full refresh every 10 min for display health
+- Graceful shutdown screen (reflector name + antenna graphic) on exit — triggered by `Ctrl+C` **and** by `systemctl stop` (SIGTERM)
 
-  ```bash
-  sudo apt install python3-reportlab
-  # fallback, if the package is not in your repository:
-  # pip install reportlab --break-system-packages
-  ```
+**Usage:**
+```bash
+sudo python3 xlx_monitor.py            # default
+sudo python3 xlx_monitor.py --black    # inverted colors
+sudo python3 xlx_monitor.py --simulate # PNG preview without hardware
+sudo python3 xlx_monitor.py --once     # single refresh and exit
+sudo python3 xlx_monitor.py --off      # blank the display and exit
+```
 
-  The faint background radio image needs Pillow, which `python3-reportlab`
-  normally pulls in. If the image is skipped, install it explicitly with
-  `sudo apt install python3-pil`.
+**XML file:** `/var/log/xlxd.xml` (configurable via the `XLX_XML` constant at the top of the file). Make sure `xlxd` is configured to write this file — no `/var/log/xlx.log` text parsing is used anymore.
+
+**Reflector name:** detected automatically, in order of preference:
+1. `ExecStart=` line of the `xlxd.service` systemd unit (checked at `/etc/systemd/system/`, `/lib/systemd/system/` and `/usr/lib/systemd/system/`)
+2. The `<REFLECTOR  linked peers>` section header inside the XML itself
+3. `REFLECTOR_FALLBACK` constant, if neither of the above is available yet
 
 ---
 
 ## Installation
 
-### Quick install (recommended)
-
-`install.sh` places everything in its proper place: code in `/opt/APRS_NET`,
-configuration in `/etc/pktnet`, data in `/var/lib/pktnet`, a systemd unit
-generated with the correct paths, and `pktnet_bot` / `pktnet_cert` CLI symlinks
-in `/usr/local/bin`. It is safe to re-run to upgrade — config and data are
-preserved.
+### 1. Clone this repository
 
 ```bash
-sudo git clone https://github.com/PP5PK/APRS_NET.git /opt/APRS_NET
-cd /opt/APRS_NET
-chmod +x install.sh
-sudo ./install.sh --dry-run     # optional: preview every action
-sudo ./install.sh               # do the install
-
-sudo nano /etc/pktnet/pktnet.conf   # set your passcode (first install only)
-sudo systemctl start pktnet.service
-sudo journalctl -u pktnet -f
+git clone https://github.com/pp5pk/Waveshare_e-paper_apps.git /usr/local/bin/Waveshare_e-paper_apps
+cd /usr/local/bin/Waveshare_e-paper_apps
 ```
 
-Because it is a git clone in `/opt/APRS_NET`, updating later is just:
+### 2. Install the WaveShare driver library (* Optional)
 
 ```bash
-cd /opt/APRS_NET && sudo git pull && sudo ./install.sh
+git clone https://github.com/waveshare/e-Paper.git
+cp -r e-Paper/RaspberryPi_JetsonNano/python/lib/waveshare_epd ./waveshare_epd
 ```
 
-Options: `--dir DIR` (install elsewhere), `--no-deps` (skip reportlab),
-`--no-start`, `-y` (no prompt), `-n/--dry-run`.
-
-### Manual install
-
-If you prefer to do it by hand, the equivalent steps are:
+### 3. Install Python dependencies
 
 ```bash
-sudo git clone https://github.com/PP5PK/APRS_NET.git /opt/APRS_NET
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin pktnet
-sudo mkdir -p /etc/pktnet /var/lib/pktnet
-sudo chown pktnet:pktnet /var/lib/pktnet
+sudo apt install python3-lgpio python3-psutil python3-pil python3-gpiozero gpiod
+```
 
-sudo cp /opt/APRS_NET/pktnet.conf.example /etc/pktnet/pktnet.conf
-sudo chown root:pktnet /etc/pktnet/pktnet.conf
-sudo chmod 0640 /etc/pktnet/pktnet.conf
-sudo nano /etc/pktnet/pktnet.conf         # fill in your passcode
+> `gpiod` provides `gpiodetect`, used on Raspberry Pi 5 to automatically locate the RP1 GPIO chip (its number varies by kernel/firmware and isn't fixed at 0 or 4).
 
-sudo apt install python3-reportlab        # for certificates
-sudo ln -sf /opt/APRS_NET/pktnet_cert.py /usr/local/bin/pktnet_cert
+### 4. Enable SPI on your Raspberry Pi
 
-# systemd unit pointing at the /opt/APRS_NET code
-sudo tee /etc/systemd/system/pktnet.service >/dev/null <<'UNIT'
-[Unit]
-Description=PKTNET APRS Net check-in bot
-After=network-online.target
-Wants=network-online.target
+```bash
+sudo raspi-config
+# Interface Options → SPI → Enable
+```
 
-[Service]
-Type=simple
-User=pktnet
-Group=pktnet
-ExecStart=/opt/APRS_NET/pktnet_bot.py run --config /etc/pktnet/pktnet.conf
-Restart=on-failure
-RestartSec=10
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-PrivateTmp=true
-ReadWritePaths=/var/lib/pktnet
+### 5. Run as a systemd service
 
-[Install]
-WantedBy=multi-user.target
-UNIT
+Copy the desired service file, edit and enable it:
 
+```bash
+sudo cp e-paper_monitor.service /etc/systemd/system/
+
+# Edit the service file so that the application name matches the target application as needed.
+sudo nano e-paper_monitor.service
 sudo systemctl daemon-reload
-sudo systemctl enable --now pktnet.service
-sudo journalctl -u pktnet -f
+sudo systemctl enable --now e-paper_monitor.service
+
+# Follow the logs
+sudo journalctl -u e-paper_monitor -f
 ```
-
-On a healthy start the log shows `Logged in as PP5PK-3, watching g/PKTNET`.
-If it shows **unverified** instead, the passcode in the configuration is wrong.
-
-### Uninstall
-
-`uninstall.sh` removes the service and the installed code. Configuration and
-data (including the check-in database) are kept unless you pass `--purge`.
-
-```bash
-chmod +x uninstall.sh
-sudo ./uninstall.sh --dry-run    # preview, changes nothing
-sudo ./uninstall.sh              # remove service + code, keep config/data
-sudo ./uninstall.sh --purge      # also remove /etc/pktnet, /var/lib/pktnet, user
-```
-
-Use `--dir DIR` if the code was installed somewhere other than `/opt/APRS_NET`.
 
 ---
 
-## Configuration
+## Display Health & Longevity
 
-`pktnet.conf` is a simple INI file. Keep it out of your git repository — it
-contains your passcode.
+E-paper displays can develop permanent ghosting if the same image is shown for extended periods. These apps implement a multi-layer protection strategy:
 
-| Section | Key | Default | Description |
-|---------|-----|---------|-------------|
-| `aprsis` | `server` | `rotate.aprs2.net` | APRS-IS server to connect to. |
-| `aprsis` | `port` | `14580` | Filtered APRS-IS port. |
-| `aprsis` | `login_call` | — | Verified login identity for the connection (e.g. `PP5PK-3`). Use an SSID that is **not** used by your igate or personal station. |
-| `aprsis` | `passcode` | — | Your APRS-IS passcode. |
-| `aprsis` | `net_call` | — | The special net callsign operators address (e.g. `PKTNET`). Max 9 characters; must not collide with a real callsign or existing service. |
-| `net` | `require_active_event` | `true` | When `true`, check-ins only count inside a registered event window. When `false`, the bot auto-creates a daily event and always logs. |
-| `net` | `confirm_text` | `Check-in OK {time}z. 73 de PP5PK` | Reply for a new check-in. |
-| `net` | `dup_text` | `Ja registrado {time}z. 73 de PP5PK` | Reply when the operator already checked in. |
-| `net` | `closed_text` | `PKTNET fora do horario. 73 de PP5PK` | Reply when no event is active (only in `require_active_event = true` mode). |
-| `net` | `admin_calls` | *(empty)* | Callsigns allowed to send admin remote-control commands (matched by base call, SSID ignored). Empty disables admin commands. |
-| `net` | `paused_text` | `PKTNET under maintenance...` | Reply sent to check-ins while the net is paused. |
-| `room` | `room_call` | *(empty)* | Group-chat room callsign (e.g. `PKTQSO`). Empty disables the room. |
-| `room` | `timeout_min` | `60` | Drop room members idle for this many minutes. |
-| `room` | `max_members` | `30` | Maximum members in the room. |
-| `room` | `min_interval` | `3` | Minimum seconds between a member's relayed messages. |
-| `messaging` | `max_retries` | `3` | Times to retransmit an unacknowledged reply. |
-| `messaging` | `retry_interval` | `30` | Seconds between retransmissions. |
-| `messaging` | `keepalive_interval` | `20` | Seconds between keepalive comments. |
-| `messaging` | `rx_timeout` | `90` | Reconnect if no data is received within this many seconds. |
-| `db` | `path` | `/var/lib/pktnet/pktnet.db` | SQLite database path. |
-
-Reply templates accept these placeholders: `{time}` (HHMM UTC), `{call}`
-(operator callsign) and `{event}` (event name). Keep each reply under **67
-characters** — the APRS message limit.
+| Mechanism | Interval | Purpose |
+|---|---|---|
+| Partial refresh | 1 s | Clock update, minimal stress |
+| Full refresh | 10 min | Clears partial refresh residue |
+| Color inversion | 30 min | Alternates black/white background to equalize pixel wear |
+| `epd.Clear()` | On every full refresh | Ensures clean slate before redraw |
 
 ---
 
-## Usage
+## Project Structure
 
-Global options `-c/--config` and `-v/--verbose` work either before or after the
-subcommand.
-
-### The daemon
-
-```bash
-# Run in the foreground (systemd normally does this for you):
-pktnet_bot.py run -c /etc/pktnet/pktnet.conf
 ```
-
-### Managing events
-
-```bash
-# Register a net window (times in UTC):
-pktnet_bot.py -c /etc/pktnet/pktnet.conf addevent "PKTNET Net #1" \
-    2026-06-25T00:00:00Z 2026-06-25T23:59:59Z
-
-# List events and their check-in counts:
-pktnet_bot.py -c /etc/pktnet/pktnet.conf events
-
-# End a net early (defaults to the active event):
-pktnet_bot.py -c /etc/pktnet/pktnet.conf endevent
-
-# Delete a net and its check-ins:
-pktnet_bot.py -c /etc/pktnet/pktnet.conf delevent 1
-
-# List check-ins for an event (defaults to the most recent):
-pktnet_bot.py -c /etc/pktnet/pktnet.conf checkins 1
+epaper-apps/
+├── station_monitor.py        # System monitor (clock + hardware metrics)
+├── xlx_monitor.py             # XLX reflector dashboard (XML-only, no log parsing)
+├── e-paper_monitor.service   # systemd service file (station_monitor.py)
+├── waveshare_epd/            # WaveShare driver library (copied from official repo)
+│   ├── epd2in13_V4.py
+│   ├── epdconfig.py
+│   └── ...
+└── README.md
 ```
-
-Events live in the database and are read on every check-in, so you can register
-or change a window **while the daemon is running** — no restart needed.
-
-### Remote control (APRS commands)
-
-Send an APRS message to the net callsign to query or control the net. Commands
-are case-insensitive and optional `[brackets]` are allowed (e.g. `[CHECK_#]`).
-Any unrecognised text is treated as a normal check-in.
-
-**Public** — anyone can send these:
-
-| Command | Reply |
-|---------|-------|
-| `CHECK_#` | Active net name and number of check-ins. |
-| `CHECK_LAST` | The last 5 callsigns to check in. |
-| `CHECK_TIME` | Time remaining in the active net (or that none is running). |
-| `CHECK_ME` | How many nets your base callsign has joined (all SSIDs counted together), plus your per-SSID check-in times in the active net. |
-| `CHECK_HELP` | Lists the commands available to you (admins see the admin ones too). |
-
-**Admin** — only callsigns in `admin_calls` (matched by base call):
-
-| Command | Action |
-|---------|--------|
-| `CHECK_USERS` | List every callsign in the active net (split across messages if long). |
-| `CHECK_START [name]` | Start a net for today (until 23:59:59 UTC), regardless of `require_active_event`. An optional name follows the command (`CHECK_START Rede da Serra`); without one it is named by date. |
-| `CHECK_STOP` | End the active net now. |
-| `CHECK_PAUSE` | Pause the net; check-ins get the `paused_text` maintenance reply and are not logged. |
-| `CHECK_RESTART` | Resume a paused net. |
-
-An admin command sent by a non-admin is ignored (treated as a check-in), so the
-admin commands stay invisible to ordinary participants. In `require_active_event
-= false` mode, `CHECK_STOP` returns the bot to its always-on behaviour (new
-check-ins log into the undated daily net).
-
-### Group chat room
-
-If `room_call` is set (e.g. `PKTQSO`), the bot also runs a group-chat room on
-that callsign. Members send messages to the room callsign and everything a
-member sends is relayed to all the other members as `SENDER: text`.
-
-| Command (to the room callsign) | Action |
-|--------------------------------|--------|
-| `JOIN` | Enter the room. |
-| `LEAVE` (or `QRT`) | Leave the room. |
-| `WHO` | List the members currently in the room. |
-| `HELP` | Show the room commands. |
-
-The message a member sends **to the room** is acknowledged (so their radio stops
-retransmitting), but the relayed copies delivered to each member are sent
-**without** an ACK, to keep RF traffic down. Members idle longer than
-`timeout_min` are dropped automatically; `max_members` caps the room size and
-`min_interval` throttles how often one member's messages are relayed. `JOIN`,
-`LEAVE`, `WHO` and `HELP` are reserved words and are not relayed as chat.
-
-> **Scale note.** Each room message becomes one packet per member (fan-out), so
-> the room is best kept to tens of members and, ideally, APRS-IS side rather than
-> gated to RF. For very large groups the shared ANSRVR service is the usual
-> alternative.
-
-### Certificates
-
-```bash
-# All participants of an event:
-pktnet_cert.py -c /etc/pktnet/pktnet.conf --event 1 --out ./certs
-
-# With operator names from a CSV ("callsign,name" per line):
-pktnet_cert.py -c /etc/pktnet/pktnet.conf --event 1 --names ops.csv --out ./certs
-
-# A single operator:
-pktnet_cert.py -c /etc/pktnet/pktnet.conf --callsign PP5ABC-7
-```
-
-| Option | Description |
-|--------|-------------|
-| `-c, --config` | Config file, used to locate the database. |
-| `--db` | Database path (overrides the config value). |
-| `--event` | Event id. Defaults to the most recent event. |
-| `--callsign` | Generate for a single operator only. |
-| `--names` | Optional CSV `callsign,name` to print operator names. |
-| `--out` | Output directory (default `./certs`). |
-| `--org` | Issuer / organiser (default `PP5PK`). |
-| `--site` | Issuer website (default `pp5pk.net`). |
-| `--radio` | Background radio image. Defaults to `pktnet_radio.png` next to the script; pass `--radio ''` to disable. |
-
-Certificates are A4 landscape, use a colourblind-safe blue/amber palette
-(Brazilian-flag inspired), and show the event name, date (DD/MM/YYYY) and the
-operator's check-in time in UTC. If `pktnet_radio.png` is present next to the
-generator, it is drawn faintly in the background as a design accent.
 
 ---
 
-## Database schema
+## Compatibility
 
-```sql
-CREATE TABLE events (
-    event_id   INTEGER PRIMARY KEY AUTOINCREMENT,
-    name       TEXT    NOT NULL,
-    event_date TEXT    NOT NULL,          -- YYYY-MM-DD (UTC)
-    start_utc  TEXT    NOT NULL,          -- ISO 8601 UTC
-    end_utc    TEXT    NOT NULL,          -- ISO 8601 UTC
-    net_call   TEXT    NOT NULL
-);
-
-CREATE TABLE checkins (
-    id        INTEGER PRIMARY KEY AUTOINCREMENT,
-    event_id  INTEGER NOT NULL REFERENCES events(event_id),
-    callsign  TEXT    NOT NULL,
-    ts_utc    TEXT    NOT NULL,           -- ISO 8601 UTC
-    message   TEXT,
-    UNIQUE(event_id, callsign)
-);
-```
-
-The database is created automatically on first run (WAL mode, with a busy
-timeout so the management subcommands can write while the daemon is running).
-
----
-
-## Operational notes
-
-- **`require_active_event` is read at startup.** Changing it in the config takes
-  effect after `sudo systemctl restart pktnet`. Event windows, by contrast, can
-  be added or changed live with `addevent`.
-- **First run.** You do not need to define a window before starting the service.
-  Start it, then register the window with `addevent` before operators begin to
-  check in. In `require_active_event = true` mode, messages that arrive with no
-  active window are answered with `closed_text` and are **not** logged.
-- **SSID choice.** The `login_call` should use an SSID that is not already in use
-  by your igate or personal station, to avoid an identity collision on APRS-IS.
-- **Net callsign.** Pick something distinct (max 9 characters) that will not
-  collide with a real callsign or an existing service such as `ANSRVR` or
-  `WXSVR`.
+| Board | Tested |
+|---|---|
+| Raspberry Pi 0 (any)| ✅ |
+| Raspberry Pi 3B+ | ✅ |
+| Raspberry Pi 4 | ✅ |
+| Raspberry Pi 5 | ✅ |
 
 ---
 
 ## Roadmap
 
-- `SIGHUP` reload so configuration changes apply without a restart.
-- CSV export of an event's participant list.
-- Optional merge of all certificates into a single PDF for batch printing.
-- Direct KISS/AGWPE attachment to Direwolf for purely-local RF operation.
+Ideas for future applications in this repository:
 
----
+- [ ] **APRS Tracker** — display latest APRS positions heard on a local iGate
+- [ ] **Weather Station** — temperature, humidity and pressure from a local sensor
+- [ ] **DMR Last Heard** — similar to the XLX dashboard but for BrandMeister/TGIF
+- [ ] **Solar/Band conditions** — pull WWV solar flux and band conditions from the web
+- [ ] **QSO Logger** — display the last logged contact from an ADIF file
 
-## Credits
-
-Inspired by the **#APRSThursday** weekly net and by the **ioreth** APRS bot.
-Built and maintained by **Daniel — PP5PK**.
+Pull requests and suggestions are welcome.
 
 ---
 
 ## License
 
-Released under the MIT License. See [`LICENSE`](LICENSE) for details.
+MIT License — feel free to use, modify and share.
 
 ---
 
-73 de PP5PK · <https://pp5pk.net> · <https://github.com/PP5PK>
+*73 de PP5PK*
+
+![73](https://cloud.dvbr.net/images/e-paper_static.jpg)
+
