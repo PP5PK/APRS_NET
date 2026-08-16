@@ -273,11 +273,46 @@ class PktNetBot:
                          net=cfg["net_call"]))
         self.sock.sendall(login.encode("ascii", "replace"))
         now = time.time()
-        self.last_rx = now
         self.last_keepalive = now
         self.rxbuf = ""
-        LOG.info("Logged in as %s, watching g/%s",
-                 cfg["login_call"], cfg["net_call"])
+
+        verdict = self._read_login_response(now + 5.0)
+        self.last_rx = time.time()
+        if verdict == "unverified":
+            LOG.warning(
+                "APRS-IS login UNVERIFIED for %s - check the passcode in your "
+                "config; the server will DROP all ACKs and replies until this "
+                "is fixed", cfg["login_call"])
+        elif verdict == "verified":
+            LOG.info("Logged in as %s (verified), watching g/%s",
+                     cfg["login_call"], cfg["net_call"])
+        else:
+            LOG.info("Logged in as %s, watching g/%s (login response not seen)",
+                     cfg["login_call"], cfg["net_call"])
+
+    def _read_login_response(self, deadline):
+        """Read the server banner / '# logresp' line after login.
+
+        Returns 'verified', 'unverified', or None if no logresp line is seen
+        before `deadline`. Anything read is left in the RX buffer so the main
+        loop still processes any packets that arrived during the window.
+        """
+        while time.time() < deadline:
+            try:
+                data = self.sock.recv(4096)
+            except socket.timeout:
+                continue
+            if not data:
+                raise socket.error("server closed the connection during login")
+            self.rxbuf += data.decode("utf-8", "replace")
+            for line in self.rxbuf.split("\n")[:-1]:
+                if line.startswith("# logresp"):
+                    low = line.lower()
+                    if "unverified" in low:      # check before "verified"
+                        return "unverified"
+                    if "verified" in low:
+                        return "verified"
+        return None
 
     def _close_socket(self):
         if self.sock:
