@@ -4,7 +4,7 @@
 
 [aprsis]
 # A tier-2 rotate works; for Brazil you may prefer a regional pool.
-server = rotate.aprs2.net
+server = firenet.us
 port = 14580
 
 # Verified login identity for the connection. The passcode is derived from
@@ -41,11 +41,11 @@ admin_calls = PP5MFA
 # disable the room. Commands (to room_call): JOIN, LEAVE, WHO, HELP.
 room_call = PKTQSO
 # Drop members with no activity for this many minutes.
-timeout_min = 60
+timeout_min = 1440
 # Maximum members in the room.
-max_members = 30
+max_members = 50
 # Minimum seconds between a member's relayed messages (flood guard).
-min_interval = 3
+min_interval = 10
 
 [messaging]
 max_retries = 3
