@@ -26,6 +26,14 @@ require_active_event = true
 confirm_text = Check-in OK {time}z. 73 de PP5PK
 dup_text     = Ja registrado {time}z. 73 de PP5PK
 closed_text  = PKTNET fora do horario. 73 de PP5PK
+paused_text  = PKTNET em manutencao. Tente novamente em alguns minutos.
+
+# Callsigns allowed to send ADMIN remote-control commands to the net callsign
+# (matched by base call, SSID ignored). Leave empty to disable admin commands.
+#   Public  (anyone):  CHECK_#, CHECK_LAST, CHECK_TIME, CHECK_ME, CHECK_HELP
+#   Admin   (below):   CHECK_USERS, CHECK_START, CHECK_STOP, CHECK_PAUSE,
+#                      CHECK_RESTART
+admin_calls = PP5MFA
 
 [messaging]
 max_retries = 3

@@ -244,6 +244,8 @@ contains your passcode.
 | `net` | `confirm_text` | `Check-in OK {time}z. 73 de PP5PK` | Reply for a new check-in. |
 | `net` | `dup_text` | `Ja registrado {time}z. 73 de PP5PK` | Reply when the operator already checked in. |
 | `net` | `closed_text` | `PKTNET fora do horario. 73 de PP5PK` | Reply when no event is active (only in `require_active_event = true` mode). |
+| `net` | `admin_calls` | *(empty)* | Callsigns allowed to send admin remote-control commands (matched by base call, SSID ignored). Empty disables admin commands. |
+| `net` | `paused_text` | `PKTNET em manutencao...` | Reply sent to check-ins while the net is paused. |
 | `messaging` | `max_retries` | `3` | Times to retransmit an unacknowledged reply. |
 | `messaging` | `retry_interval` | `30` | Seconds between retransmissions. |
 | `messaging` | `keepalive_interval` | `20` | Seconds between keepalive comments. |
@@ -278,12 +280,49 @@ pktnet_bot.py -c /etc/pktnet/pktnet.conf addevent "PKTNET Net #1" \
 # List events and their check-in counts:
 pktnet_bot.py -c /etc/pktnet/pktnet.conf events
 
+# End a net early (defaults to the active event):
+pktnet_bot.py -c /etc/pktnet/pktnet.conf endevent
+
+# Delete a net and its check-ins:
+pktnet_bot.py -c /etc/pktnet/pktnet.conf delevent 1
+
 # List check-ins for an event (defaults to the most recent):
 pktnet_bot.py -c /etc/pktnet/pktnet.conf checkins 1
 ```
 
 Events live in the database and are read on every check-in, so you can register
 or change a window **while the daemon is running** — no restart needed.
+
+### Remote control (APRS commands)
+
+Send an APRS message to the net callsign to query or control the net. Commands
+are case-insensitive and optional `[brackets]` are allowed (e.g. `[CHECK_#]`).
+Any unrecognised text is treated as a normal check-in.
+
+**Public** — anyone can send these:
+
+| Command | Reply |
+|---------|-------|
+| `CHECK_#` | Active net name and number of check-ins. |
+| `CHECK_LAST` | The last 5 callsigns to check in. |
+| `CHECK_TIME` | Time remaining in the active net (or that none is running). |
+| `CHECK_ME` | How many nets your base callsign has joined (all SSIDs counted together), plus your per-SSID check-in times in the active net. |
+| `CHECK_HELP` | Lists the commands available to you (admins see the admin ones too). |
+
+**Admin** — only callsigns in `admin_calls` (matched by base call):
+
+| Command | Action |
+|---------|--------|
+| `CHECK_USERS` | List every callsign in the active net (split across messages if long). |
+| `CHECK_START` | Start a net for today (until 23:59:59 UTC), regardless of `require_active_event`. |
+| `CHECK_STOP` | End the active net now. |
+| `CHECK_PAUSE` | Pause the net; check-ins get the `paused_text` maintenance reply and are not logged. |
+| `CHECK_RESTART` | Resume a paused net. |
+
+An admin command sent by a non-admin is ignored (treated as a check-in), so the
+admin commands stay invisible to ordinary participants. In `require_active_event
+= false` mode, `CHECK_STOP` returns the bot to its always-on behaviour (new
+check-ins log into the undated daily net).
 
 ### Certificates
 

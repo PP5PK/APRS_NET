@@ -60,6 +60,58 @@ LOG = logging.getLogger("pktnet")
 # Matches an APRS message ACK/REJ payload, e.g. "ack042" or "rej07".
 ACK_RE = re.compile(r"^(ack|rej)([0-9A-Za-z]{1,5})$")
 
+# Remote-control commands. Keys are the normalised message text (upper-case,
+# surrounding brackets/spaces stripped); values are the internal action names.
+COMMAND_ALIASES = {
+    # public (any participant)
+    "CHECK_HELP": "help", "HELP": "help",
+    "CHECK_#": "status", "CHECK_STATUS": "status", "STATUS": "status",
+    "CHECK_LAST": "last", "LAST": "last",
+    "CHECK_TIME": "time", "TIME": "time",
+    "CHECK_ME": "me", "ME": "me",
+    # admin only
+    "CHECK_USERS": "users", "USERS": "users",
+    "CHECK_START": "start", "START": "start",
+    "CHECK_STOP": "stop", "STOP": "stop", "CHECK_END": "stop",  # END -> STOP
+    "CHECK_PAUSE": "pause", "PAUSE": "pause",
+    "CHECK_RESTART": "restart", "RESTART": "restart",
+}
+
+PUBLIC_ACTIONS = {"help", "status", "last", "time", "me"}
+ADMIN_ACTIONS = {"users", "start", "stop", "pause", "restart"}
+
+# Command names shown by CHECK_HELP, per permission group.
+HELP_PUBLIC = ["CHECK_#", "CHECK_LAST", "CHECK_TIME", "CHECK_ME", "CHECK_HELP"]
+HELP_ADMIN = ["CHECK_USERS", "CHECK_START", "CHECK_STOP", "CHECK_PAUSE",
+              "CHECK_RESTART"]
+
+
+def base_call(call):
+    """Return the base callsign without its SSID (PP5MFA-7 -> PP5MFA)."""
+    return call.split("-", 1)[0].upper().strip()
+
+
+def _parse_calls(raw):
+    """Parse a comma/space separated callsign list into a set of base calls."""
+    parts = re.split(r"[,\s]+", raw.strip())
+    return {base_call(p) for p in parts if p}
+
+
+def _iso_to_dt(iso):
+    """Parse a stored ISO 8601 timestamp into a tz-aware UTC datetime."""
+    dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _fmt_duration(td):
+    """Human-friendly remaining time, e.g. '2h05m' or '18m'."""
+    secs = int(td.total_seconds())
+    if secs <= 0:
+        return "ending now"
+    hours, rem = divmod(secs, 3600)
+    minutes = rem // 60
+    return "{}h{:02d}m".format(hours, minutes) if hours else "{}m".format(minutes)
+
 
 # --------------------------------------------------------------------------- #
 # Configuration
@@ -87,6 +139,10 @@ def load_config(path):
                             fallback="Ja registrado {time}z. 73 de PP5PK"),
         "closed_text": cfg.get("net", "closed_text",
                                fallback="PKTNET fora do horario. 73 de PP5PK"),
+        "paused_text": cfg.get("net", "paused_text",
+                               fallback="PKTNET em manutencao. Tente novamente "
+                                        "em alguns minutos."),
+        "admin_calls": _parse_calls(cfg.get("net", "admin_calls", fallback="")),
 
         "max_retries": cfg.getint("messaging", "max_retries", fallback=3),
         "retry_interval": cfg.getint("messaging", "retry_interval", fallback=30),
@@ -124,7 +180,8 @@ def init_db(path):
             event_date TEXT    NOT NULL,          -- YYYY-MM-DD (UTC)
             start_utc  TEXT    NOT NULL,          -- ISO 8601 UTC
             end_utc    TEXT    NOT NULL,          -- ISO 8601 UTC
-            net_call   TEXT    NOT NULL
+            net_call   TEXT    NOT NULL,
+            status     TEXT    NOT NULL DEFAULT 'open'  -- open | paused | closed
         );
 
         CREATE TABLE IF NOT EXISTS checkins (
@@ -137,15 +194,20 @@ def init_db(path):
         );
         """
     )
+    # Migration: add 'status' to pre-existing events tables.
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(events)").fetchall()]
+    if "status" not in cols:
+        conn.execute("ALTER TABLE events ADD COLUMN status TEXT NOT NULL "
+                     "DEFAULT 'open'")
     conn.commit()
     return conn
 
 
 def get_active_event(conn, now_iso):
-    """Return the event row whose window contains now_iso, or None."""
+    """Return the active (non-closed) event whose window contains now_iso."""
     cur = conn.execute(
         "SELECT * FROM events "
-        "WHERE start_utc <= ? AND end_utc >= ? "
+        "WHERE status != 'closed' AND start_utc <= ? AND end_utc >= ? "
         "ORDER BY start_utc DESC LIMIT 1",
         (now_iso, now_iso),
     )
@@ -161,6 +223,91 @@ def record_checkin(conn, event_id, callsign, ts_iso, message):
     )
     conn.commit()
     return cur.rowcount == 1
+
+
+def count_checkins(conn, event_id):
+    row = conn.execute(
+        "SELECT COUNT(*) FROM checkins WHERE event_id = ?", (event_id,)
+    ).fetchone()
+    return row[0] if row else 0
+
+
+def list_checkin_calls(conn, event_id):
+    rows = conn.execute(
+        "SELECT callsign FROM checkins WHERE event_id = ? ORDER BY ts_utc",
+        (event_id,),
+    ).fetchall()
+    return [r["callsign"] for r in rows]
+
+
+def end_event(conn, event_id, now_iso):
+    """Close an event now (status=closed, end_utc=now). Return the row or None."""
+    row = conn.execute("SELECT * FROM events WHERE event_id = ?",
+                       (event_id,)).fetchone()
+    if row is None:
+        return None
+    conn.execute("UPDATE events SET end_utc = ?, status = 'closed' "
+                 "WHERE event_id = ?", (now_iso, event_id))
+    conn.commit()
+    return row
+
+
+def set_event_status(conn, event_id, status):
+    conn.execute("UPDATE events SET status = ? WHERE event_id = ?",
+                 (status, event_id))
+    conn.commit()
+
+
+def last_checkin_calls(conn, event_id, limit=5):
+    """Most recent check-in callsigns first."""
+    rows = conn.execute(
+        "SELECT callsign FROM checkins WHERE event_id = ? "
+        "ORDER BY ts_utc DESC LIMIT ?", (event_id, limit),
+    ).fetchall()
+    return [r["callsign"] for r in rows]
+
+
+def checkins_by_base(conn, event_id, base):
+    """Return [(callsign, ts_utc), ...] for every SSID of `base` in the event."""
+    rows = conn.execute(
+        "SELECT callsign, ts_utc FROM checkins "
+        "WHERE event_id = ? AND (callsign = ? OR callsign LIKE ?) "
+        "ORDER BY ts_utc", (event_id, base, base + "-%"),
+    ).fetchall()
+    return [(r["callsign"], r["ts_utc"]) for r in rows]
+
+
+def total_nets_by_base(conn, base):
+    """Distinct events joined by any SSID of the base callsign."""
+    row = conn.execute(
+        "SELECT COUNT(DISTINCT event_id) FROM checkins "
+        "WHERE callsign = ? OR callsign LIKE ?", (base, base + "-%"),
+    ).fetchone()
+    return row[0] if row else 0
+
+
+def create_daily_net(conn, name, date_str, start_iso, end_iso, net_call):
+    conn.execute(
+        "INSERT INTO events (name, event_date, start_utc, end_utc, net_call, "
+        "status) VALUES (?, ?, ?, ?, ?, 'open')",
+        (name, date_str, start_iso, end_iso, net_call),
+    )
+    conn.commit()
+    return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+def delete_event(conn, event_id):
+    """Delete an event and its check-ins. Return the number of check-ins
+    removed, or None if the event did not exist."""
+    row = conn.execute("SELECT event_id FROM events WHERE event_id = ?",
+                       (event_id,)).fetchone()
+    if row is None:
+        return None
+    n = count_checkins(conn, event_id)
+    conn.execute("DELETE FROM checkins WHERE event_id = ?", (event_id,))
+    conn.execute("DELETE FROM events WHERE event_id = ?", (event_id,))
+    conn.commit()
+    return n
 
 
 # --------------------------------------------------------------------------- #
@@ -380,7 +527,151 @@ class PktNetBot:
         if msgno:
             self._send_raw(build_ack(self.cfg["net_call"], source, msgno))
 
+        # Remote-control command?
+        action = COMMAND_ALIASES.get(text.strip().strip("[]").strip().upper())
+        if action:
+            is_admin = base_call(source) in self.cfg["admin_calls"]
+            if action in PUBLIC_ACTIONS or (action in ADMIN_ACTIONS and is_admin):
+                LOG.info("Command %s from %s", action, source)
+                self._handle_command(source, action, is_admin)
+                return
+            # recognised admin command from a non-admin: treat as a check-in
+
         self._process_checkin(source, text)
+
+    # -- remote control ---------------------------------------------------- #
+
+    def _handle_command(self, source, action, is_admin):
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        conn = self.conn
+        event = get_active_event(conn, now_iso)
+
+        # --- public commands --------------------------------------------- #
+        if action == "help":
+            cmds = list(HELP_PUBLIC) + (HELP_ADMIN if is_admin else [])
+            for line in self._pack(cmds, sep=", "):
+                self._enqueue_reply(source, line)
+            return
+
+        if action == "status":
+            if event is None:
+                self._enqueue_reply(source, "No active net right now.")
+            else:
+                n = count_checkins(conn, event["event_id"])
+                self._enqueue_reply(source, "{}: {} check-in(s)".format(
+                    event["name"], n))
+            return
+
+        if action == "last":
+            if event is None:
+                self._enqueue_reply(source, "No active net right now.")
+                return
+            calls = last_checkin_calls(conn, event["event_id"], 5)
+            if not calls:
+                self._enqueue_reply(source, "No check-ins yet.")
+                return
+            for line in self._pack(calls, prefix="Last: "):
+                self._enqueue_reply(source, line)
+            return
+
+        if action == "time":
+            if event is None:
+                self._enqueue_reply(source, "No active net (no end time set).")
+                return
+            remaining = _iso_to_dt(event["end_utc"]) - now
+            self._enqueue_reply(source, "Time left: {}".format(
+                _fmt_duration(remaining)))
+            return
+
+        if action == "me":
+            base = base_call(source)
+            total = total_nets_by_base(conn, base)
+            head = "You ({}) {} net(s):".format(base, total)
+            details = []
+            if event is not None:
+                for cs, ts in checkins_by_base(conn, event["event_id"], base):
+                    details.append("{} {}z".format(
+                        cs, _iso_to_dt(ts).strftime("%H%M")))
+            if details:
+                for line in self._pack(details, prefix=head + " "):
+                    self._enqueue_reply(source, line)
+            else:
+                self._enqueue_reply(source, head + " not checked in now")
+            return
+
+        # --- admin commands ---------------------------------------------- #
+        if action == "users":
+            if event is None:
+                self._enqueue_reply(source, "No active net right now.")
+                return
+            calls = list_checkin_calls(conn, event["event_id"])
+            if not calls:
+                self._enqueue_reply(source, "No check-ins yet.")
+                return
+            for line in self._pack(calls):
+                self._enqueue_reply(source, line)
+            return
+
+        if action == "start":
+            if event is not None:
+                self._enqueue_reply(source, "Net already running: {}".format(
+                    event["name"]))
+                return
+            date_str = now.strftime("%Y-%m-%d")
+            end = now.replace(hour=23, minute=59, second=59, microsecond=0)
+            name = "PKTNET Net " + date_str
+            create_daily_net(conn, name, date_str, now_iso, end.isoformat(),
+                             self.cfg["net_call"])
+            LOG.info("Net started by %s: %s", source, name)
+            self._enqueue_reply(source, "Net started: {} (until 2359z)".format(
+                name))
+            return
+
+        if action == "stop":
+            if event is None:
+                self._enqueue_reply(source, "No active net to stop.")
+                return
+            end_event(conn, event["event_id"], now_iso)
+            LOG.info("Net #%s stopped by %s", event["event_id"], source)
+            self._enqueue_reply(source, "Net stopped: {}".format(event["name"]))
+            return
+
+        if action == "pause":
+            if event is None:
+                self._enqueue_reply(source, "No active net to pause.")
+                return
+            set_event_status(conn, event["event_id"], "paused")
+            LOG.info("Net #%s paused by %s", event["event_id"], source)
+            self._enqueue_reply(source, "Net paused: {}".format(event["name"]))
+            return
+
+        if action == "restart":
+            if event is None or event["status"] != "paused":
+                self._enqueue_reply(source, "No paused net to resume.")
+                return
+            set_event_status(conn, event["event_id"], "open")
+            LOG.info("Net #%s resumed by %s", event["event_id"], source)
+            self._enqueue_reply(source, "Net resumed: {}".format(event["name"]))
+            return
+
+    @staticmethod
+    def _pack(tokens, sep=" ", prefix=""):
+        """Pack tokens into messages that fit the APRS text limit; the prefix
+        is added once, at the start of the first message."""
+        lines, cur, first = [], "", True
+        for tok in tokens:
+            candidate = (prefix + tok) if (first and not cur) else (
+                tok if not cur else cur + sep + tok)
+            if len(candidate) > APRS_MAX_TEXT and cur:
+                lines.append(cur)
+                first = False
+                cur = tok
+            else:
+                cur = candidate
+        if cur:
+            lines.append(cur)
+        return lines or [prefix.rstrip()]
 
     def _process_checkin(self, source, text):
         now = datetime.now(timezone.utc)
@@ -388,6 +679,12 @@ class PktNetBot:
         hhmm = now.strftime("%H%M")
 
         event = get_active_event(self.conn, now_iso)
+
+        if event is not None and event["status"] == "paused":
+            LOG.info("Net paused - check-in from %s deferred", source)
+            self._enqueue_reply(source, self.cfg["paused_text"])
+            return
+
         if event is None and self.cfg["require_active_event"]:
             LOG.info("No active event - check-in from %s ignored", source)
             self._enqueue_reply(source, self.cfg["closed_text"].format(time=hhmm))
@@ -411,25 +708,20 @@ class PktNetBot:
 
     def _ensure_adhoc_event(self, now):
         date_str = now.strftime("%Y-%m-%d")
+        name = "PKTNET " + date_str
         row = self.conn.execute(
-            "SELECT * FROM events WHERE event_date = ? AND name = ? LIMIT 1",
-            (date_str, "PKTNET " + date_str),
+            "SELECT * FROM events WHERE event_date = ? AND name = ? "
+            "AND status != 'closed' ORDER BY start_utc DESC LIMIT 1",
+            (date_str, name),
         ).fetchone()
         if row:
             return row
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         end = now.replace(hour=23, minute=59, second=59, microsecond=0)
-        self.conn.execute(
-            "INSERT INTO events (name, event_date, start_utc, end_utc, net_call) "
-            "VALUES (?, ?, ?, ?, ?)",
-            ("PKTNET " + date_str, date_str, start.isoformat(),
-             end.isoformat(), self.cfg["net_call"]),
-        )
-        self.conn.commit()
-        return self.conn.execute(
-            "SELECT * FROM events WHERE event_date = ? AND name = ? LIMIT 1",
-            (date_str, "PKTNET " + date_str),
-        ).fetchone()
+        eid = create_daily_net(self.conn, name, date_str, start.isoformat(),
+                               end.isoformat(), self.cfg["net_call"])
+        return self.conn.execute("SELECT * FROM events WHERE event_id = ?",
+                                 (eid,)).fetchone()
 
     # -- outbound ---------------------------------------------------------- #
 
@@ -519,6 +811,54 @@ def cmd_addevent(args, cfg):
     conn.close()
 
 
+def _resolve_event_id(conn, event_id):
+    """Return event_id, or the active/most-recent event id if none given."""
+    if event_id:
+        return event_id
+    now_iso = datetime.now(timezone.utc).isoformat()
+    row = get_active_event(conn, now_iso)
+    if row is None:
+        row = conn.execute(
+            "SELECT event_id FROM events ORDER BY start_utc DESC LIMIT 1"
+        ).fetchone()
+    return row["event_id"] if row else None
+
+
+def cmd_endevent(args, cfg):
+    conn = init_db(cfg["db_path"])
+    eid = _resolve_event_id(conn, args.event_id)
+    if eid is None:
+        print("No event to end.")
+        return
+    now_iso = datetime.now(timezone.utc).isoformat()
+    row = end_event(conn, eid, now_iso)
+    if row is None:
+        print("Event #{} not found.".format(eid))
+    else:
+        print("Event #{} ended now: {}".format(eid, row["name"]))
+    conn.close()
+
+
+def cmd_delevent(args, cfg):
+    conn = init_db(cfg["db_path"])
+    row = conn.execute("SELECT * FROM events WHERE event_id = ?",
+                       (args.event_id,)).fetchone()
+    if row is None:
+        print("Event #{} not found.".format(args.event_id))
+        return
+    n = count_checkins(conn, args.event_id)
+    if not args.yes:
+        ans = input("Delete event #{} '{}' and its {} check-in(s)? [y/N] "
+                    .format(args.event_id, row["name"], n))
+        if ans.strip().lower() not in ("y", "yes"):
+            print("Aborted.")
+            return
+    delete_event(conn, args.event_id)
+    print("Deleted event #{} ({} check-in(s) removed).".format(
+        args.event_id, n))
+    conn.close()
+
+
 def cmd_events(args, cfg):
     conn = init_db(cfg["db_path"])
     rows = conn.execute(
@@ -590,6 +930,17 @@ def main():
 
     sub.add_parser("events", parents=[common], help="list registered events")
 
+    p_end = sub.add_parser("endevent", parents=[common],
+                           help="end a net now (defaults to the active event)")
+    p_end.add_argument("event_id", nargs="?", type=int,
+                       help="event id (defaults to the active/most recent event)")
+
+    p_del = sub.add_parser("delevent", parents=[common],
+                           help="delete a net and its check-ins")
+    p_del.add_argument("event_id", type=int, help="event id to delete")
+    p_del.add_argument("-y", "--yes", action="store_true",
+                       help="do not ask for confirmation")
+
     p_ck = sub.add_parser("checkins", parents=[common],
                           help="list check-ins for an event")
     p_ck.add_argument("event_id", nargs="?", type=int,
@@ -611,6 +962,8 @@ def main():
     handlers = {
         "run": cmd_run,
         "addevent": cmd_addevent,
+        "endevent": cmd_endevent,
+        "delevent": cmd_delevent,
         "events": cmd_events,
         "checkins": cmd_checkins,
     }
