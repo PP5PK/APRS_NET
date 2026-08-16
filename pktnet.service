@@ -1,6 +1,6 @@
 [Unit]
 Description=PKTNET APRS Net check-in bot
-Documentation=https://github.com/PP5PK
+Documentation=https://github.com/PP5PK/APRS_NET
 After=network-online.target
 Wants=network-online.target
 
@@ -8,7 +8,7 @@ Wants=network-online.target
 Type=simple
 User=pktnet
 Group=pktnet
-ExecStart=/usr/local/bin/pktnet_bot.py run --config /etc/pktnet/pktnet.conf
+ExecStart=/opt/apnet/pktnet_bot.py run --config /etc/pktnet/pktnet.conf
 Restart=on-failure
 RestartSec=10
 

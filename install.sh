@@ -98,10 +98,13 @@ while [ $# -gt 0 ]; do
 done
 
 # --- sanity: must run from the project dir --------------------------------- #
-if [ ! -f "${SRC_DIR}/pktnet_bot.py" ] || [ ! -f "${SRC_DIR}/pktnet_cert.py" ]; then
-  warn "Run this from the project directory (pktnet_bot.py not found in ${SRC_DIR})."
-  exit 1
-fi
+for required in pktnet_bot.py pktnet_cert.py pktnet.conf.example; do
+  if [ ! -f "${SRC_DIR}/${required}" ]; then
+    warn "Missing '${required}' in ${SRC_DIR}."
+    warn "Run this from the project directory (the git clone)."
+    exit 1
+  fi
+done
 
 # --- must be root (except in dry-run) -------------------------------------- #
 if [ "$DRY_RUN" -eq 0 ] && [ "$(id -u)" -ne 0 ]; then
@@ -163,13 +166,9 @@ run mkdir -p "${CONF_DIR}"
 if [ -f "${CONF_FILE}" ]; then
   step "config exists, keeping ${CONF_FILE}"
 else
-  if [ -f "${SRC_DIR}/pktnet.conf.example" ]; then
-    info "Installing config template to ${CONF_FILE}"
-    run install -m 0640 "${SRC_DIR}/pktnet.conf.example" "${CONF_FILE}"
-    CONFIG_FRESH=1
-  else
-    warn "pktnet.conf.example not found; create ${CONF_FILE} manually"
-  fi
+  info "Installing config template to ${CONF_FILE}"
+  run install -m 0640 "${SRC_DIR}/pktnet.conf.example" "${CONF_FILE}"
+  CONFIG_FRESH=1
 fi
 run chown root:"${SVC_USER}" "${CONF_FILE}" 2>/dev/null || true
 run chmod 0640 "${CONF_FILE}" 2>/dev/null || true
@@ -226,9 +225,11 @@ if command -v systemctl >/dev/null 2>&1; then
   run systemctl daemon-reload
   info "Enabling ${SERVICE} (start on boot)"
   run systemctl enable "${SERVICE}"
-  if [ "$START_SERVICE" -eq 1 ] && [ "$CONFIG_FRESH" -eq 0 ]; then
+  if [ "$START_SERVICE" -eq 1 ] && [ "$CONFIG_FRESH" -eq 0 ] && [ -f "${CONF_FILE}" ]; then
     info "Starting ${SERVICE}"
     run systemctl restart "${SERVICE}"
+  else
+    step "not starting yet (set the passcode in ${CONF_FILE} first)"
   fi
 else
   warn "systemctl not found; skipping service enable/start"
