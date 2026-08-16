@@ -103,6 +103,8 @@ sequenceDiagram
 | `pktnet_radio.png` | Optional stylised radio image drawn faintly in the certificate background. |
 | `pktnet.conf.example` | Configuration template (copy to `/etc/pktnet/pktnet.conf`). |
 | `pktnet.service` | systemd unit for the daemon. |
+| `install.sh` | Centralised installer (code in `/opt/apnet`, config/data in place). |
+| `uninstall.sh` | Removes the service and code (keeps config/data unless `--purge`). |
 
 ---
 
@@ -131,39 +133,98 @@ sequenceDiagram
 
 ## Installation
 
+### Quick install (recommended)
+
+`install.sh` places everything in its proper place: code in `/opt/apnet`,
+configuration in `/etc/pktnet`, data in `/var/lib/pktnet`, a systemd unit
+generated with the correct paths, and `pktnet_bot` / `pktnet_cert` CLI symlinks
+in `/usr/local/bin`. It is safe to re-run to upgrade — config and data are
+preserved.
+
 ```bash
-git clone https://github.com/PP5PK/APRS_NET.git
-cd APRS_NET
+sudo git clone https://github.com/PP5PK/APRS_NET.git /opt/apnet
+cd /opt/apnet
+chmod +x install.sh
+sudo ./install.sh --dry-run     # optional: preview every action
+sudo ./install.sh               # do the install
 
-# 1. Install the scripts
-sudo install -m 0755 pktnet_bot.py  /usr/local/bin/pktnet_bot.py
-sudo install -m 0755 pktnet_cert.py /usr/local/bin/pktnet_cert.py
-# optional: the certificate background image, next to the generator
-sudo install -m 0644 pktnet_radio.png /usr/local/bin/pktnet_radio.png
+sudo nano /etc/pktnet/pktnet.conf   # set your passcode (first install only)
+sudo systemctl start pktnet.service
+sudo journalctl -u pktnet -f
+```
 
-# 2. Dedicated system user and data directory
+Because it is a git clone in `/opt/apnet`, updating later is just:
+
+```bash
+cd /opt/apnet && sudo git pull && sudo ./install.sh
+```
+
+Options: `--dir DIR` (install elsewhere), `--no-deps` (skip reportlab),
+`--no-start`, `-y` (no prompt), `-n/--dry-run`.
+
+### Manual install
+
+If you prefer to do it by hand, the equivalent steps are:
+
+```bash
+sudo git clone https://github.com/PP5PK/APRS_NET.git /opt/apnet
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin pktnet
 sudo mkdir -p /etc/pktnet /var/lib/pktnet
 sudo chown pktnet:pktnet /var/lib/pktnet
 
-# 3. Configuration (holds your passcode -> keep it private)
-sudo cp pktnet.conf.example /etc/pktnet/pktnet.conf
+sudo cp /opt/apnet/pktnet.conf.example /etc/pktnet/pktnet.conf
 sudo chown root:pktnet /etc/pktnet/pktnet.conf
 sudo chmod 0640 /etc/pktnet/pktnet.conf
-sudo nano /etc/pktnet/pktnet.conf        # fill in your passcode
+sudo nano /etc/pktnet/pktnet.conf         # fill in your passcode
 
-# 4. Certificate dependency
-sudo apt install python3-reportlab
+sudo apt install python3-reportlab        # for certificates
+sudo ln -sf /opt/apnet/pktnet_cert.py /usr/local/bin/pktnet_cert
 
-# 5. Service
-sudo cp pktnet.service /etc/systemd/system/pktnet.service
+# systemd unit pointing at the /opt/apnet code
+sudo tee /etc/systemd/system/pktnet.service >/dev/null <<'UNIT'
+[Unit]
+Description=PKTNET APRS Net check-in bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pktnet
+Group=pktnet
+ExecStart=/opt/apnet/pktnet_bot.py run --config /etc/pktnet/pktnet.conf
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/pktnet
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
 sudo systemctl daemon-reload
 sudo systemctl enable --now pktnet.service
-sudo journalctl -u pktnet -f             # follow the logs
+sudo journalctl -u pktnet -f
 ```
 
 On a healthy start the log shows `Logged in as PP5PK-3, watching g/PKTNET`.
 If it shows **unverified** instead, the passcode in the configuration is wrong.
+
+### Uninstall
+
+`uninstall.sh` removes the service and the installed code. Configuration and
+data (including the check-in database) are kept unless you pass `--purge`.
+
+```bash
+chmod +x uninstall.sh
+sudo ./uninstall.sh --dry-run    # preview, changes nothing
+sudo ./uninstall.sh              # remove service + code, keep config/data
+sudo ./uninstall.sh --purge      # also remove /etc/pktnet, /var/lib/pktnet, user
+```
+
+Use `--dir DIR` if the code was installed somewhere other than `/opt/apnet`.
 
 ---
 
