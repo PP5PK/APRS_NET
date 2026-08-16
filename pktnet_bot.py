@@ -44,7 +44,7 @@ import socket
 import sqlite3
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 # --------------------------------------------------------------------------- #
 # Defaults
@@ -79,6 +79,14 @@ COMMAND_ALIASES = {
 
 PUBLIC_ACTIONS = {"help", "status", "last", "time", "me"}
 ADMIN_ACTIONS = {"users", "start", "stop", "pause", "restart"}
+
+# Group-chat room commands (messages addressed to the room callsign).
+ROOM_COMMAND_ALIASES = {
+    "JOIN": "join", "CHECK_JOIN": "join", "IN": "join",
+    "LEAVE": "leave", "CHECK_LEAVE": "leave", "QRT": "leave", "OUT": "leave",
+    "WHO": "who", "CHECK_WHO": "who",
+    "HELP": "help", "CHECK_HELP": "help", "?": "help",
+}
 
 # Command names shown by CHECK_HELP, per permission group.
 HELP_PUBLIC = ["CHECK_#", "CHECK_LAST", "CHECK_TIME", "CHECK_ME", "CHECK_HELP"]
@@ -157,13 +165,19 @@ def load_config(path):
         "confirm_text": cfg.get("net", "confirm_text",
                                 fallback="Check-in OK {time}z. 73 de PP5PK"),
         "dup_text": cfg.get("net", "dup_text",
-                            fallback="Ja registrado {time}z. 73 de PP5PK"),
+                            fallback="Already registered {time}z. 73 de PP5PK"),
         "closed_text": cfg.get("net", "closed_text",
-                               fallback="PKTNET fora do horario. 73 de PP5PK"),
+                               fallback="PKTNET not active. 73 de PP5PK"),
         "paused_text": cfg.get("net", "paused_text",
-                               fallback="PKTNET em manutencao. Tente novamente "
-                                        "em alguns minutos."),
+                               fallback="PKTNET under maintenance, try again "
+                                        "in a few minutes."),
         "admin_calls": _parse_calls(cfg.get("net", "admin_calls", fallback="")),
+
+        # Group chat room (optional). Empty room_call disables the room.
+        "room_call": cfg.get("room", "room_call", fallback="").upper().strip(),
+        "room_timeout_min": cfg.getint("room", "timeout_min", fallback=60),
+        "room_max": cfg.getint("room", "max_members", fallback=30),
+        "room_min_interval": cfg.getint("room", "min_interval", fallback=3),
 
         "max_retries": cfg.getint("messaging", "max_retries", fallback=3),
         "retry_interval": cfg.getint("messaging", "retry_interval", fallback=30),
@@ -212,6 +226,12 @@ def init_db(path):
             ts_utc    TEXT    NOT NULL,           -- ISO 8601 UTC
             message   TEXT,
             UNIQUE(event_id, callsign)
+        );
+
+        CREATE TABLE IF NOT EXISTS room_members (
+            callsign      TEXT PRIMARY KEY,
+            joined_utc    TEXT NOT NULL,
+            last_seen_utc TEXT NOT NULL
         );
         """
     )
@@ -331,6 +351,49 @@ def delete_event(conn, event_id):
     return n
 
 
+# --- group chat room ------------------------------------------------------- #
+
+def room_join(conn, call, now_iso):
+    conn.execute("INSERT OR IGNORE INTO room_members "
+                 "(callsign, joined_utc, last_seen_utc) VALUES (?, ?, ?)",
+                 (call, now_iso, now_iso))
+    conn.execute("UPDATE room_members SET last_seen_utc = ? WHERE callsign = ?",
+                 (now_iso, call))
+    conn.commit()
+
+
+def room_leave(conn, call):
+    conn.execute("DELETE FROM room_members WHERE callsign = ?", (call,))
+    conn.commit()
+
+
+def room_touch(conn, call, now_iso):
+    conn.execute("UPDATE room_members SET last_seen_utc = ? WHERE callsign = ?",
+                 (now_iso, call))
+    conn.commit()
+
+
+def room_is_member(conn, call):
+    return conn.execute("SELECT 1 FROM room_members WHERE callsign = ?",
+                        (call,)).fetchone() is not None
+
+
+def room_members_list(conn):
+    return [r["callsign"] for r in conn.execute(
+        "SELECT callsign FROM room_members ORDER BY joined_utc").fetchall()]
+
+
+def room_count(conn):
+    return conn.execute("SELECT COUNT(*) FROM room_members").fetchone()[0]
+
+
+def room_prune(conn, deadline_iso):
+    """Remove members whose last activity is older than deadline_iso."""
+    conn.execute("DELETE FROM room_members WHERE last_seen_utc < ?",
+                 (deadline_iso,))
+    conn.commit()
+
+
 # --------------------------------------------------------------------------- #
 # APRS packet parsing / building
 # --------------------------------------------------------------------------- #
@@ -407,6 +470,7 @@ class PktNetBot:
         self.pending = {}
         self.last_rx = 0.0
         self.last_keepalive = 0.0
+        self._room_last = {}   # in-memory per-sender relay cooldown
 
     # -- lifecycle --------------------------------------------------------- #
 
@@ -435,10 +499,11 @@ class PktNetBot:
         self.sock = socket.create_connection((cfg["server"], cfg["port"]),
                                               timeout=15)
         self.sock.settimeout(1.0)
-        login = ("user {call} pass {pc} vers {name} {ver} filter g/{net}\r\n"
+        gfilter = ("g/{}/{}".format(cfg["net_call"], cfg["room_call"])
+                   if cfg["room_call"] else "g/" + cfg["net_call"])
+        login = ("user {call} pass {pc} vers {name} {ver} filter {flt}\r\n"
                  .format(call=cfg["login_call"], pc=cfg["passcode"],
-                         name=SOFTWARE_NAME, ver=SOFTWARE_VERS,
-                         net=cfg["net_call"]))
+                         name=SOFTWARE_NAME, ver=SOFTWARE_VERS, flt=gfilter))
         self.sock.sendall(login.encode("ascii", "replace"))
         now = time.time()
         self.last_keepalive = now
@@ -446,17 +511,19 @@ class PktNetBot:
 
         verdict = self._read_login_response(now + 5.0)
         self.last_rx = time.time()
+        watching = cfg["net_call"] + (" + " + cfg["room_call"]
+                                      if cfg["room_call"] else "")
         if verdict == "unverified":
             LOG.warning(
                 "APRS-IS login UNVERIFIED for %s - check the passcode in your "
                 "config; the server will DROP all ACKs and replies until this "
                 "is fixed", cfg["login_call"])
         elif verdict == "verified":
-            LOG.info("Logged in as %s (verified), watching g/%s",
-                     cfg["login_call"], cfg["net_call"])
+            LOG.info("Logged in as %s (verified), watching %s",
+                     cfg["login_call"], watching)
         else:
-            LOG.info("Logged in as %s, watching g/%s (login response not seen)",
-                     cfg["login_call"], cfg["net_call"])
+            LOG.info("Logged in as %s, watching %s (login response not seen)",
+                     cfg["login_call"], watching)
 
     def _read_login_response(self, deadline):
         """Read the server banner / '# logresp' line after login.
@@ -532,8 +599,16 @@ class PktNetBot:
             return
         addressee, text, msgno = msg
 
-        # Only messages addressed to our net callsign concern us.
-        if addressee != self.cfg["net_call"]:
+        net_call = self.cfg["net_call"]
+        room_call = self.cfg["room_call"]
+
+        # Ignore anything we ourselves injected (anti-loop).
+        if source == net_call or (room_call and source == room_call):
+            return
+
+        is_net = addressee == net_call
+        is_room = bool(room_call) and addressee == room_call
+        if not (is_net or is_room):
             return
 
         # Is it an ACK/REJ for one of our outgoing replies?
@@ -542,11 +617,17 @@ class PktNetBot:
             self._clear_pending(source, m.group(2))
             return
 
-        LOG.info("Message from %s: %r (msgno=%s)", source, text, msgno)
+        LOG.info("Message from %s to %s: %r (msgno=%s)",
+                 source, addressee, text, msgno)
 
-        # Courtesy ACK so the sender's radio stops retransmitting.
+        # Courtesy ACK, sent from whichever callsign was addressed, so the
+        # sender's radio stops retransmitting.
         if msgno:
-            self._send_raw(build_ack(self.cfg["net_call"], source, msgno))
+            self._send_raw(build_ack(addressee, source, msgno))
+
+        if is_room:
+            self._handle_room(source, text)
+            return
 
         # Remote-control command?
         action, arg = parse_command(text)
@@ -559,6 +640,105 @@ class PktNetBot:
             # recognised admin command from a non-admin: treat as a check-in
 
         self._process_checkin(source, text)
+
+    # -- group chat room --------------------------------------------------- #
+
+    def _handle_room(self, source, text):
+        room = self.cfg["room_call"]
+        conn = self.conn
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+
+        # Drop members idle beyond the timeout.
+        deadline = (now - timedelta(
+            minutes=self.cfg["room_timeout_min"])).isoformat()
+        room_prune(conn, deadline)
+
+        raction = ROOM_COMMAND_ALIASES.get(text.strip().strip("[]").strip().upper())
+
+        if raction == "join":
+            if not room_is_member(conn, source) and \
+                    room_count(conn) >= self.cfg["room_max"]:
+                self._enqueue_reply(source, "{} is full, try later.".format(room),
+                                    from_call=room)
+                return
+            new = not room_is_member(conn, source)
+            room_join(conn, source, now_iso)
+            LOG.info("%s joined room %s", source, room)
+            self._enqueue_reply(
+                source, "Joined {} ({} here). Send text to talk; LEAVE to "
+                "exit.".format(room, room_count(conn)), from_call=room)
+            if new:
+                self._relay_system(source, "{} joined".format(source))
+            return
+
+        if raction == "leave":
+            if room_is_member(conn, source):
+                room_leave(conn, source)
+                LOG.info("%s left room %s", source, room)
+                self._enqueue_reply(source, "Left {}. 73!".format(room),
+                                    from_call=room)
+                self._relay_system(source, "{} left".format(source))
+            else:
+                self._enqueue_reply(source, "You are not in {}.".format(room),
+                                    from_call=room)
+            return
+
+        if raction == "who":
+            members = room_members_list(conn)
+            if not members:
+                self._enqueue_reply(source, "{} is empty.".format(room),
+                                    from_call=room)
+            else:
+                for line in self._pack(members, prefix="In {}: ".format(room)):
+                    self._enqueue_reply(source, line, from_call=room)
+            return
+
+        if raction == "help":
+            self._enqueue_reply(
+                source, "{}: JOIN, LEAVE, WHO, HELP. Send text to talk.".format(
+                    room), from_call=room)
+            return
+
+        # Not a command: a chat message to relay.
+        if not room_is_member(conn, source):
+            self._enqueue_reply(
+                source, "Not in {}. Send JOIN to enter.".format(room),
+                from_call=room)
+            return
+
+        # Simple flood guard: drop (already ACKed) if the member is too fast.
+        last = self._room_last.get(source)
+        self._room_last[source] = now
+        if last and (now - last).total_seconds() < self.cfg["room_min_interval"]:
+            LOG.info("Rate-limited relay from %s", source)
+            return
+
+        room_touch(conn, source, now_iso)
+        self._relay(source, text)
+
+    def _relay(self, source, text):
+        """Relay a member's message to every other member (no ACK, no retry)."""
+        room = self.cfg["room_call"]
+        body = "{}: {}".format(source, text)
+        n = 0
+        for member in room_members_list(self.conn):
+            if member == source:
+                continue
+            self._send_noack(room, member, body)
+            n += 1
+        LOG.info("Relayed from %s to %d member(s)", source, n)
+
+    def _relay_system(self, source, text):
+        """Send a short system notice (join/left) to the other members."""
+        room = self.cfg["room_call"]
+        for member in room_members_list(self.conn):
+            if member == source:
+                continue
+            self._send_noack(room, member, "* " + text)
+
+    def _send_noack(self, from_call, to_call, text):
+        self._send_raw(build_message(from_call, to_call, text))
 
     # -- remote control ---------------------------------------------------- #
 
@@ -752,9 +932,10 @@ class PktNetBot:
         self._out_seq = (self._out_seq + 1) % 100000
         return str(self._out_seq)
 
-    def _enqueue_reply(self, to_call, text):
+    def _enqueue_reply(self, to_call, text, from_call=None):
+        from_call = from_call or self.cfg["net_call"]
         msgno = self._next_msgno()
-        line = build_message(self.cfg["net_call"], to_call, text, msgno)
+        line = build_message(from_call, to_call, text, msgno)
         self.pending[(to_call, msgno)] = {
             "line": line, "attempts": 0, "next": 0.0,
         }

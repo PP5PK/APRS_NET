@@ -245,7 +245,11 @@ contains your passcode.
 | `net` | `dup_text` | `Ja registrado {time}z. 73 de PP5PK` | Reply when the operator already checked in. |
 | `net` | `closed_text` | `PKTNET fora do horario. 73 de PP5PK` | Reply when no event is active (only in `require_active_event = true` mode). |
 | `net` | `admin_calls` | *(empty)* | Callsigns allowed to send admin remote-control commands (matched by base call, SSID ignored). Empty disables admin commands. |
-| `net` | `paused_text` | `PKTNET em manutencao...` | Reply sent to check-ins while the net is paused. |
+| `net` | `paused_text` | `PKTNET under maintenance...` | Reply sent to check-ins while the net is paused. |
+| `room` | `room_call` | *(empty)* | Group-chat room callsign (e.g. `PKTQSO`). Empty disables the room. |
+| `room` | `timeout_min` | `60` | Drop room members idle for this many minutes. |
+| `room` | `max_members` | `30` | Maximum members in the room. |
+| `room` | `min_interval` | `3` | Minimum seconds between a member's relayed messages. |
 | `messaging` | `max_retries` | `3` | Times to retransmit an unacknowledged reply. |
 | `messaging` | `retry_interval` | `30` | Seconds between retransmissions. |
 | `messaging` | `keepalive_interval` | `20` | Seconds between keepalive comments. |
@@ -323,6 +327,26 @@ An admin command sent by a non-admin is ignored (treated as a check-in), so the
 admin commands stay invisible to ordinary participants. In `require_active_event
 = false` mode, `CHECK_STOP` returns the bot to its always-on behaviour (new
 check-ins log into the undated daily net).
+
+### Group chat room
+
+If `room_call` is set (e.g. `PKTQSO`), the bot also runs a group-chat room on
+that callsign. Members send messages to the room callsign and everything a
+member sends is relayed to all the other members as `SENDER: text`.
+
+| Command (to the room callsign) | Action |
+|--------------------------------|--------|
+| `JOIN` | Enter the room. |
+| `LEAVE` (or `QRT`) | Leave the room. |
+| `WHO` | List the members currently in the room. |
+| `HELP` | Show the room commands. |
+
+The message a member sends **to the room** is acknowledged (so their radio stops
+retransmitting), but the relayed copies delivered to each member are sent
+**without** an ACK, to keep RF traffic down. Members idle longer than
+`timeout_min` are dropped automatically; `max_members` caps the room size and
+`min_interval` throttles how often one member's messages are relayed. `JOIN`,
+`LEAVE`, `WHO` and `HELP` are reserved words and are not relayed as chat.
 
 ### Certificates
 

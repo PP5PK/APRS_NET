@@ -10,7 +10,7 @@ port = 14580
 # Verified login identity for the connection. The passcode is derived from
 # the BASE callsign (PP5PK), so it is the same with or without the SSID.
 login_call = PP5PK-3
-passcode = 24034
+passcode = 00000
 
 # The special net callsign users address their messages to.
 net_call = PKTNET
@@ -19,7 +19,7 @@ net_call = PKTNET
 # When true, check-ins only count while an event window is active
 # (register windows with: pktnet_bot.py addevent ...).
 # When false, the bot auto-creates a daily ad-hoc event and always logs.
-require_active_event = false
+require_active_event = true
 
 # Reply templates. Placeholders: {time} = HHMM UTC, {call}, {event}.
 # Keep each under 67 characters; PP5PK is included for station ID.
@@ -34,6 +34,18 @@ paused_text  = PKTNET under maintenance, try again in a few minutes.
 #   Admin   (below):   CHECK_USERS, CHECK_START, CHECK_STOP, CHECK_PAUSE,
 #                      CHECK_RESTART
 admin_calls = PP5MFA
+
+[room]
+# Optional group-chat room. Users send a message to this callsign; anything a
+# member sends is relayed to all other members. Leave room_call empty to
+# disable the room. Commands (to room_call): JOIN, LEAVE, WHO, HELP.
+room_call = PKTQSO
+# Drop members with no activity for this many minutes.
+timeout_min = 60
+# Maximum members in the room.
+max_members = 30
+# Minimum seconds between a member's relayed messages (flood guard).
+min_interval = 3
 
 [messaging]
 max_retries = 3
