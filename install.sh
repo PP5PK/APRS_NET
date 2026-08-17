@@ -159,7 +159,12 @@ else
     warn "pktnet_radio.png not found; certificates will render without the background"
   fi
 fi
-run chmod 0755 "${INSTALL_DIR}/pktnet_bot.py" "${INSTALL_DIR}/pktnet_cert.py"
+# Ensure the scripts are executable, but do NOT touch a file that already is:
+# in an in-place git clone an unconditional chmod would dirty the working tree
+# and break future 'git pull'.
+for f in pktnet_bot.py pktnet_cert.py; do
+  [ -x "${INSTALL_DIR}/${f}" ] || run chmod 0755 "${INSTALL_DIR}/${f}"
+done
 
 # --- 3) config ------------------------------------------------------------- #
 run mkdir -p "${CONF_DIR}"
