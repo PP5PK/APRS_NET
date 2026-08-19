@@ -321,7 +321,7 @@ or change a window **while the daemon is running** — no restart needed.
 ### Remote control (APRS commands)
 
 Send an APRS message to the net callsign to query or control the net. Commands
-are case-insensitive and optional `[brackets]` are allowed (e.g. `[CHECK_#]`).
+are case-insensitive and optional `[brackets]` are allowed (e.g. `[STATUS]`).
 Any unrecognised text is treated as a normal check-in.
 
 **Public** — anyone can send these:

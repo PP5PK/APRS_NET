@@ -68,18 +68,18 @@ ACK_RE = re.compile(r"^(ack|rej)([0-9A-Za-z]{1,5})$")
 # surrounding brackets/spaces stripped); values are the internal action names.
 COMMAND_ALIASES = {
     # public (any participant)
-    "CHECK_HELP": "help", "HELP": "help",
-    "CHECK_#": "status", "CHECK_STATUS": "status", "STATUS": "status",
-    "CHECK_LAST": "last", "LAST": "last",
-    "CHECK_TIME": "time", "TIME": "time",
-    "CHECK_ME": "me", "ME": "me",
-    "CHECK_RESEND": "resend", "RESEND": "resend",
+    "HELP": "help",
+    "STATUS": "status",
+    "LAST": "last",
+    "TIME": "time",
+    "ME": "me",
+    "RESEND": "resend",
     # admin only
-    "CHECK_USERS": "users", "USERS": "users",
-    "CHECK_START": "start", "START": "start",
-    "CHECK_STOP": "stop", "STOP": "stop", "CHECK_END": "stop",  # END -> STOP
-    "CHECK_PAUSE": "pause", "PAUSE": "pause",
-    "CHECK_RESTART": "restart", "RESTART": "restart",
+    "USERS": "users",
+    "START": "start",
+    "STOP": "stop", "END": "stop",
+    "PAUSE": "pause",
+    "RESTART": "restart", "RESUME": "restart",
 }
 
 PUBLIC_ACTIONS = {"help", "status", "last", "time", "me", "resend"}
@@ -87,17 +87,15 @@ ADMIN_ACTIONS = {"users", "start", "stop", "pause", "restart"}
 
 # Group-chat room commands (messages addressed to the room callsign).
 ROOM_COMMAND_ALIASES = {
-    "JOIN": "join", "CHECK_JOIN": "join", "IN": "join",
-    "LEAVE": "leave", "CHECK_LEAVE": "leave", "QRT": "leave", "OUT": "leave",
-    "WHO": "who", "CHECK_WHO": "who",
-    "HELP": "help", "CHECK_HELP": "help", "?": "help",
+    "JOIN": "join", "IN": "join",
+    "LEAVE": "leave", "QRT": "leave", "OUT": "leave",
+    "WHO": "who",
+    "HELP": "help", "?": "help",
 }
 
-# Command names shown by CHECK_HELP, per permission group.
-HELP_PUBLIC = ["CHECK_#", "CHECK_LAST", "CHECK_TIME", "CHECK_ME", "CHECK_RESEND",
-               "CHECK_HELP"]
-HELP_ADMIN = ["CHECK_USERS", "CHECK_START", "CHECK_STOP", "CHECK_PAUSE",
-              "CHECK_RESTART"]
+# Command names shown by HELP, per permission group.
+HELP_PUBLIC = ["HELP", "STATUS", "LAST", "TIME", "ME", "RESEND"]
+HELP_ADMIN = ["USERS", "START", "STOP", "PAUSE", "RESTART"]
 
 
 def base_call(call):
@@ -134,9 +132,9 @@ def parse_command(text):
     rest is an optional argument with its own surrounding brackets stripped.
     Returns (None, "") when the first word is not a known command.
     Examples:
-      "[CHECK_#]"                 -> ("status", "")
-      "CHECK_START [Rede da Serra]"-> ("start", "Rede da Serra")
-      "check_start minha rede"    -> ("start", "minha rede")
+      "[STATUS]"                 -> ("status", "")
+      "START [Rede da Serra]"-> ("start", "Rede da Serra")
+      "start minha rede"    -> ("start", "minha rede")
     """
     parts = text.strip().split(None, 1)
     if not parts:
@@ -926,7 +924,7 @@ class PktNetBot:
         if action == "help":
             cmds = list(HELP_PUBLIC)
             if not self.cfg["cert_enable"]:
-                cmds = [c for c in cmds if c != "CHECK_RESEND"]
+                cmds = [c for c in cmds if c != "RESEND"]
             cmds += (HELP_ADMIN if is_admin else [])
             for line in self._pack(cmds, sep=", "):
                 self._enqueue_reply(source, line)
