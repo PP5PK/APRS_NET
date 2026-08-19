@@ -73,6 +73,7 @@ COMMAND_ALIASES = {
     "CHECK_LAST": "last", "LAST": "last",
     "CHECK_TIME": "time", "TIME": "time",
     "CHECK_ME": "me", "ME": "me",
+    "CHECK_RESEND": "resend", "RESEND": "resend",
     # admin only
     "CHECK_USERS": "users", "USERS": "users",
     "CHECK_START": "start", "START": "start",
@@ -81,7 +82,7 @@ COMMAND_ALIASES = {
     "CHECK_RESTART": "restart", "RESTART": "restart",
 }
 
-PUBLIC_ACTIONS = {"help", "status", "last", "time", "me"}
+PUBLIC_ACTIONS = {"help", "status", "last", "time", "me", "resend"}
 ADMIN_ACTIONS = {"users", "start", "stop", "pause", "restart"}
 
 # Group-chat room commands (messages addressed to the room callsign).
@@ -93,7 +94,8 @@ ROOM_COMMAND_ALIASES = {
 }
 
 # Command names shown by CHECK_HELP, per permission group.
-HELP_PUBLIC = ["CHECK_#", "CHECK_LAST", "CHECK_TIME", "CHECK_ME", "CHECK_HELP"]
+HELP_PUBLIC = ["CHECK_#", "CHECK_LAST", "CHECK_TIME", "CHECK_ME", "CHECK_RESEND",
+               "CHECK_HELP"]
 HELP_ADMIN = ["CHECK_USERS", "CHECK_START", "CHECK_STOP", "CHECK_PAUSE",
               "CHECK_RESTART"]
 
@@ -210,6 +212,11 @@ def load_config(path):
                                fallback="PKTNET under maintenance, try again "
                                         "in a few minutes."),
         "admin_calls": _parse_calls(cfg.get("net", "admin_calls", fallback="")),
+        "checkin_keyword": cfg.get("net", "checkin_keyword",
+                                   fallback="CHECK").upper().strip(),
+        "checkin_hint": cfg.get("net", "checkin_hint",
+                                fallback="Send CHECK to join the net. 73 de "
+                                         "PP5PK"),
 
         # Group chat room (optional). Empty room_call disables the room.
         "room_call": cfg.get("room", "room_call", fallback="").upper().strip(),
@@ -796,7 +803,17 @@ class PktNetBot:
                 return
             # recognised admin command from a non-admin: treat as a check-in
 
-        self._process_checkin(source, text)
+        # Only the check-in keyword starts a check-in; anything else is ignored
+        # (an optional hint is sent so operators know how to join).
+        first = text.strip().strip("[]").strip().split(None, 1)
+        keyword = first[0].upper() if first else ""
+        if keyword == self.cfg["checkin_keyword"]:
+            self._process_checkin(source, text)
+        elif self.cfg["checkin_hint"]:
+            LOG.info("Non-check message from %s: %r", source, text)
+            self._enqueue_reply(source, self.cfg["checkin_hint"])
+        else:
+            LOG.info("Ignoring non-check message from %s: %r", source, text)
 
     # -- group chat room --------------------------------------------------- #
 
@@ -907,9 +924,43 @@ class PktNetBot:
 
         # --- public commands --------------------------------------------- #
         if action == "help":
-            cmds = list(HELP_PUBLIC) + (HELP_ADMIN if is_admin else [])
+            cmds = list(HELP_PUBLIC)
+            if not self.cfg["cert_enable"]:
+                cmds = [c for c in cmds if c != "CHECK_RESEND"]
+            cmds += (HELP_ADMIN if is_admin else [])
             for line in self._pack(cmds, sep=", "):
                 self._enqueue_reply(source, line)
+            return
+
+        if action == "resend":
+            if not self.cfg["cert_enable"]:
+                self._enqueue_reply(source, "Certificates are not available.")
+                return
+            base = base_call(source)
+            contact = get_cert_contact(conn, base)
+            if not (contact and contact["email"]):
+                self._enqueue_reply(
+                    source, "No certificate on file. Do a check-in first.")
+                return
+            row = conn.execute(
+                "SELECT event_id FROM checkins WHERE callsign = ? OR "
+                "callsign LIKE ? ORDER BY ts_utc DESC LIMIT 1",
+                (base, base + "-%")).fetchone()
+            if row is None:
+                self._enqueue_reply(source, "No check-in found to resend.")
+                return
+            name, email = contact["name"], contact["email"]
+            path = self._generate_cert(row["event_id"], source, base, name)
+            if not path:
+                self._enqueue_reply(source, "Sorry, could not build the "
+                                            "certificate right now.")
+                return
+            if self.cfg["email_enable"] and self.cfg["email_from"]:
+                self._send_cert_email_async(email, name, path)
+                self._enqueue_reply(source, "Resent to {}! 73".format(email))
+            else:
+                self._enqueue_reply(source, "Certificate ready as {}! 73".format(
+                    name))
             return
 
         if action == "status":

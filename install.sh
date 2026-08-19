@@ -31,6 +31,7 @@ INSTALL_DEPS=1
 START_SERVICE=1
 ASSUME_YES=0
 DRY_RUN=0
+DB_UPDATE=0
 
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_FRESH=0
@@ -88,6 +89,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --dir)      INSTALL_DIR="${2:?--dir needs a path}"; shift ;;
     --no-deps)  INSTALL_DEPS=0 ;;
+    --db-update) DB_UPDATE=1 ;;
     --no-start) START_SERVICE=0 ;;
     -y|--yes)   ASSUME_YES=1 ;;
     -n|--dry-run) DRY_RUN=1 ;;
@@ -159,11 +161,13 @@ else
     warn "pktnet_radio.png not found; certificates will render without the background"
   fi
 fi
-# Ensure the scripts are executable, but do NOT touch a file that already is:
-# in an in-place git clone an unconditional chmod would dirty the working tree
-# and break future 'git pull'.
+# Normalise permissions. The service and the CLI wrappers run the scripts via
+# 'python3 <file>', so the scripts do NOT need the execute bit - this both fixes
+# the recurring permission problems and avoids dirtying an in-place git clone
+# (git would otherwise see a 644->755 mode change and block 'git pull'). We only
+# make sure the service user can read them.
 for f in pktnet_bot.py pktnet_cert.py; do
-  [ -x "${INSTALL_DIR}/${f}" ] || run chmod 0755 "${INSTALL_DIR}/${f}"
+  [ -f "${INSTALL_DIR}/${f}" ] && run chmod a+r "${INSTALL_DIR}/${f}"
 done
 
 # --- 3) config ------------------------------------------------------------- #
@@ -182,13 +186,14 @@ run chmod 0640 "${CONF_FILE}" 2>/dev/null || true
 info "Preparing data directory ${DATA_DIR}"
 run mkdir -p "${DATA_DIR}"
 
-# Certificate source data: copy the repo's certs/ (name database, CSV and the
-# background image) into the runtime certs dir, so a fresh install works without
-# a manual copy. Generated PDFs are written here at runtime.
+# Certificate source data: copy the repo's certs/ SOURCE files (CSV, the DB
+# build scripts and the background image) into the runtime certs dir. users.db
+# is NOT shipped (a binary in git corrupts and hits web-upload size limits); it
+# is built locally below.
 CERT_DIR="${DATA_DIR}/certs"
 run mkdir -p "${CERT_DIR}"
 if [ -d "${SRC_DIR}/certs" ]; then
-  for f in users.db users_base.csv pktnet_radio.png; do
+  for f in users_base.csv create_user_db.php update_db.sh pktnet_radio.png; do
     if [ -f "${SRC_DIR}/certs/${f}" ]; then
       run install -m 0644 "${SRC_DIR}/certs/${f}" "${CERT_DIR}/${f}"
     fi
@@ -210,7 +215,7 @@ Wants=network-online.target
 Type=simple
 User=${SVC_USER}
 Group=${SVC_USER}
-ExecStart=${INSTALL_DIR}/pktnet_bot.py run --config ${CONF_FILE}
+ExecStart=/usr/bin/python3 ${INSTALL_DIR}/pktnet_bot.py run --config ${CONF_FILE}
 Restart=on-failure
 RestartSec=10
 
@@ -224,18 +229,55 @@ ReadWritePaths=${DATA_DIR}
 WantedBy=multi-user.target
 EOF
 
-# --- 6) cli symlinks ------------------------------------------------------- #
-info "Creating CLI symlinks in ${BIN_DIR}"
-run ln -sf "${INSTALL_DIR}/pktnet_bot.py"  "${BIN_DIR}/pktnet_bot"
-run ln -sf "${INSTALL_DIR}/pktnet_cert.py" "${BIN_DIR}/pktnet_cert"
+# --- 6) cli wrappers ------------------------------------------------------- #
+# Small wrappers in ${BIN_DIR} (outside the repo) that call python3 on the
+# scripts, so the tracked .py files never need the execute bit.
+info "Creating CLI wrappers in ${BIN_DIR}"
+for pair in "pktnet_bot:pktnet_bot.py" "pktnet_cert:pktnet_cert.py"; do
+  name="${pair%%:*}"; target="${pair##*:}"
+  write_file "${BIN_DIR}/${name}" <<EOF
+#!/bin/sh
+exec /usr/bin/python3 "${INSTALL_DIR}/${target}" "\$@"
+EOF
+  run chmod 0755 "${BIN_DIR}/${name}"
+done
 
 # --- 7) dependencies ------------------------------------------------------- #
 if [ "$INSTALL_DEPS" -eq 1 ]; then
   if command -v apt-get >/dev/null 2>&1; then
-    info "Installing python3-reportlab (for certificates)"
-    run apt-get install -y python3-reportlab || warn "reportlab install failed; certificates may not render"
+    info "Installing dependencies (reportlab, php, sqlite3, pv)"
+    run apt-get install -y python3-reportlab php-cli php-sqlite3 sqlite3 pv wget \
+      || warn "some dependencies failed to install"
   else
-    warn "apt-get not found; install reportlab manually for certificates"
+    warn "apt-get not found; install python3-reportlab, php-cli, php-sqlite3, sqlite3 and pv manually"
+  fi
+fi
+
+# --- 7b) build the operator-name database ---------------------------------- #
+# Done after deps so php is available. Default builds from the committed CSV
+# (instant, offline); --db-update first pulls the latest from radioid.net.
+if [ ! -f "${CERT_DIR}/users.db" ] || [ "$DB_UPDATE" -eq 1 ]; then
+  db_built=0
+  if [ "$DB_UPDATE" -eq 1 ] && [ -f "${CERT_DIR}/update_db.sh" ]; then
+    info "Refreshing operator database from radioid.net (update_db.sh)"
+    if run bash "${CERT_DIR}/update_db.sh"; then db_built=1; else
+      warn "update_db.sh failed; falling back to the local CSV"
+    fi
+  fi
+  if [ "$db_built" -eq 0 ] && [ -f "${CERT_DIR}/create_user_db.php" ] \
+      && [ -f "${CERT_DIR}/users_base.csv" ]; then
+    if command -v php >/dev/null 2>&1 || [ "$DRY_RUN" -eq 1 ]; then
+      info "Building operator database from the local CSV"
+      run php "${CERT_DIR}/create_user_db.php" && db_built=1 \
+        || warn "could not build users.db"
+    else
+      warn "php not found; skipping users.db build"
+    fi
+  fi
+  if [ "$db_built" -eq 1 ]; then
+    run chown "${SVC_USER}":"${SVC_USER}" "${CERT_DIR}/users.db" 2>/dev/null || true
+  else
+    warn "users.db not built; certificate name lookup will be limited"
   fi
 fi
 

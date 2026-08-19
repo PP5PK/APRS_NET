@@ -137,37 +137,44 @@ sequenceDiagram
 
 `install.sh` places everything in its proper place: code in `/opt/APRS_NET`,
 configuration in `/etc/pktnet`, data in `/var/lib/pktnet`, a systemd unit
-generated with the correct paths, and `pktnet_bot` / `pktnet_cert` CLI symlinks
-in `/usr/local/bin`. It is safe to re-run to upgrade — config and data are
-preserved.
+generated with the correct paths, and `pktnet_bot` / `pktnet_cert` CLI wrappers
+in `/usr/local/bin`. It also installs the dependencies (`python3-reportlab`,
+`php-cli`, `php-sqlite3`, `sqlite3`, `pv`) and builds the operator-name database
+`users.db` from `certs/users_base.csv`. It is safe to re-run to upgrade — config
+and data are preserved.
 
 ```bash
 sudo git clone https://github.com/PP5PK/APRS_NET.git /opt/APRS_NET
 cd /opt/APRS_NET
-chmod +x install.sh
-sudo ./install.sh --dry-run     # optional: preview every action
-sudo ./install.sh               # do the install
+sudo bash install.sh --dry-run     # optional: preview every action
+sudo bash install.sh               # do the install
 
 sudo nano /etc/pktnet/pktnet.conf   # set your passcode (first install only)
 sudo systemctl start pktnet.service
 sudo journalctl -u pktnet -f
 ```
 
+Run it with `sudo bash install.sh` (not `./install.sh`) so it works even though
+files uploaded through the GitHub website arrive without the execute bit. The
+service and CLI run the scripts via `python3`, so the `.py` files never need to
+be executable — this removes the recurring permission problem entirely.
+
 Because it is a git clone in `/opt/APRS_NET`, updating later is just:
 
 ```bash
-cd /opt/APRS_NET && sudo git pull && sudo ./install.sh
+cd /opt/APRS_NET && sudo git pull && sudo bash install.sh
 ```
 
-Options: `--dir DIR` (install elsewhere), `--no-deps` (skip reportlab),
-`--no-start`, `-y` (no prompt), `-n/--dry-run`.
+Options: `--dir DIR` (install elsewhere), `--no-deps` (skip dependency install),
+`--db-update` (pull the latest database from radioid.net via `update_db.sh`
+instead of building from the committed CSV), `--no-start`, `-y` (no prompt),
+`-n/--dry-run`.
 
-> The scripts are already executable in the repository, so you do **not** need
-> to `chmod +x` them after cloning. If a `git pull` ever aborts with
-> *"local changes would be overwritten"* and `git diff --summary` only shows
-> `mode change`, that is just a file-permission difference — clear it with
-> `git config core.fileMode false` (tells git to ignore permission changes in
-> this clone), then `git checkout -- . && git pull`.
+> You do **not** need to `chmod +x` anything after cloning. If a `git pull` ever
+> aborts with *"local changes would be overwritten"* and `git diff --summary`
+> only shows `mode change`, that is just a file-permission difference — clear it
+> once with `git config core.fileMode false`, then `git checkout -- . && git
+> pull`.
 
 ### Manual install
 
@@ -324,6 +331,7 @@ Any unrecognised text is treated as a normal check-in.
 | `CHECK_LAST` | The last 5 callsigns to check in. |
 | `CHECK_TIME` | Time remaining in the active net (or that none is running). |
 | `CHECK_ME` | How many nets your base callsign has joined (all SSIDs counted together), plus your per-SSID check-in times in the active net. |
+| `CHECK_RESEND` | Re-generate and re-send your certificate for your latest net to the email on file (only when `[cert]` is enabled). |
 | `CHECK_HELP` | Lists the commands available to you (admins see the admin ones too). |
 
 **Admin** — only callsigns in `admin_calls` (matched by base call):
