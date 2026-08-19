@@ -11,11 +11,11 @@
 # --------------------------------------------
 # CONFIGURATION — adjust paths if necessary
 # --------------------------------------------
-DB_FILE="/xlxd/users_db/users_base.csv"
+DB_FILE="/var/lib/pktnet/certs/users_base.csv"
 HTPASSWD="/var/www/restricted/.htpasswd"
 PENDING_FILE="/var/www/restricted/pendentes.txt"
 WHITELIST="/xlxd/xlxd.whitelist"
-CREATE_DB_PHP="/xlxd/users_db/create_user_db.php"
+CREATE_DB_PHP="/var/lib/pktnet/certs/create_user_db.php"
 
 ESCAPE="X"
 CLEAR="-"
