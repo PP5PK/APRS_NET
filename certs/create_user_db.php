@@ -1,23 +1,30 @@
 <?php
 
 // Path to CSV and SQLite database
-$csvFile = '/xlxd/users_db/users_base.csv';
-$dbFile = '/xlxd/users_db/users.db';
+$csvFile = '/var/lib/pktnet/certs/users_base.csv';
+$dbFile  = '/var/lib/pktnet/certs/users.db';
+// Build into a temp file first, then atomically replace $dbFile at the end.
+// This way a crash never leaves a half-written (corrupt) users.db behind, and
+// the bot keeps reading the old database until the new one is complete.
+$tmpFile = $dbFile . '.tmp';
 
 // Check if CSV file exists
 if (!file_exists($csvFile)) {
     die("Error: users_base.csv not found at $csvFile\n");
 }
 
-// Create or open SQLite database
+// Start the temp database from scratch.
+if (file_exists($tmpFile)) {
+    unlink($tmpFile);
+}
+
+// Create the temp SQLite database
 try {
-    $db = new SQLite3($dbFile);
+    $db = new SQLite3($tmpFile);
 } catch (Exception $e) {
     die("Error: Could not open SQLite database: " . $e->getMessage() . "\n");
 }
 
-// Create table (drop if exists to ensure fresh data)
-$db->exec('DROP TABLE IF EXISTS users');
 $db->exec('CREATE TABLE users (
     callsign TEXT PRIMARY KEY,
     name TEXT,
@@ -109,8 +116,18 @@ fclose($handle);
 
 // Commit the transaction
 $db->exec('COMMIT');
-
 $db->close();
+
+// Refuse to publish an empty build (CSV problem) over a good database.
+if ($counter === 0) {
+    unlink($tmpFile);
+    die("Error: no rows imported - check the CSV delimiter/columns. Kept the old users.db.\n");
+}
+
+// Atomically replace the live database with the freshly built one.
+if (!rename($tmpFile, $dbFile)) {
+    die("Error: could not replace $dbFile\n");
+}
 
 $elapsed = microtime(true) - $startTime;
 echo "Database updated successfully. Processed $counter rows in " . number_format($elapsed, 2) . " seconds\n";
