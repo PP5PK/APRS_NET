@@ -257,6 +257,12 @@ contains your passcode.
 | `room` | `timeout_min` | `60` | Drop room members idle for this many minutes. |
 | `room` | `max_members` | `30` | Maximum members in the room. |
 | `room` | `min_interval` | `3` | Minimum seconds between a member's relayed messages. |
+| `cert` | `enable` | `false` | Turn the interactive certificate flow on or off. |
+| `cert` | `dir` | `/var/lib/pktnet/certs` | Folder for generated PDFs, `users.db` and the CSV. |
+| `cert` | `users_db` | `.../certs/users.db` | Read-only name database `users(callsign, name, city_state)`. |
+| `cert` | `radio` | `.../certs/pktnet_radio.png` | Optional certificate background image. |
+| `cert` | `org` / `site` | `PP5PK` / `pp5pk.net` | Issuer text on the certificate. |
+| `cert` | `flow_timeout_min` | `10` | Drop an unfinished certificate conversation after N minutes. |
 | `messaging` | `max_retries` | `3` | Times to retransmit an unacknowledged reply. |
 | `messaging` | `retry_interval` | `30` | Seconds between retransmissions. |
 | `messaging` | `keepalive_interval` | `20` | Seconds between keepalive comments. |
@@ -361,6 +367,37 @@ retransmitting), but the relayed copies delivered to each member are sent
 > alternative.
 
 ### Certificates
+
+There are two ways to make certificates: an **interactive flow over APRS** (the
+bot asks each operator), and the **command-line generator** (you render them in
+bulk).
+
+#### Interactive flow (over APRS)
+
+When `[cert] enable = true`, the first time an operator checks in to a net the
+bot offers a certificate and walks them through it entirely by APRS message:
+
+1. "Want a certificate? Reply your email (only to send it) or NO".
+2. The operator replies an email. The bot looks their name up in `users.db`
+   (a read-only `users(callsign, name, city_state)` table) and asks
+   "Name: <name>. Reply YES to use it, or send the name" — so wrong or
+   incomplete names in the database can be corrected on the spot. If no name is
+   found it just asks for one.
+3. The bot renders the PDF into `[cert] dir`.
+
+Names are always normalised to Title Case with connective particles in lower
+case (`MARIA DA SILVA` → `Maria da Silva`), even when typed by the operator,
+and the callsign is shown in upper case without its SSID. The email and chosen
+name are remembered per operator, so on later nets the bot just asks
+"Use previous info? YES / NO / new email" and shows the stored values, saving
+typing on the radio. An unanswered conversation is dropped after
+`flow_timeout_min` minutes. (Emailing the PDF is a later phase; for now the
+bot renders and stores it, and remembers the address.)
+
+Put `users.db` (and, if you use it, the background `pktnet_radio.png`) in the
+`[cert] dir` folder — by default `/var/lib/pktnet/certs/`.
+
+#### Command-line generator
 
 ```bash
 # All participants of an event:

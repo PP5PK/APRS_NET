@@ -4,7 +4,7 @@
 
 [aprsis]
 # A tier-2 rotate works; for Brazil you may prefer a regional pool.
-server = firenet.us
+server = rotate.aprs2.net
 port = 14580
 
 # Verified login identity for the connection. The passcode is derived from
@@ -55,3 +55,22 @@ rx_timeout = 90
 
 [db]
 path = /var/lib/pktnet/pktnet.db
+
+[cert]
+# Interactive certificate flow. After a first check-in the bot offers a
+# certificate, asks for an email, resolves the operator name from users.db
+# (with an interactive confirm/correct step), and renders a PDF.
+# enable = false keeps the whole feature off.
+enable = false
+# Where certificates, the name database and the CSV live.
+dir = /var/lib/pktnet/certs
+# Read-only SQLite name database: table users(callsign, name, city_state).
+users_db = /var/lib/pktnet/certs/users.db
+# Optional background image for the certificate (leave as-is if placed here).
+radio = /var/lib/pktnet/certs/pktnet_radio.png
+# Text shown on the certificate.
+org = PP5PK
+site = pp5pk.net
+# Abandon an unfinished certificate conversation after this many minutes.
+flow_timeout_min = 10
+

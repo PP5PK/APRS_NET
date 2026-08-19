@@ -142,6 +142,40 @@ def parse_command(text):
     return action, arg
 
 
+# Lowercase connective particles kept in lower case inside names (unless first).
+NAME_PARTICLES = {
+    "de", "del", "della", "di", "do", "dos", "das", "da", "du", "van", "von",
+    "der", "den", "la", "le", "lo", "los", "e", "y",
+}
+
+
+def name_case(raw):
+    """Title-case a personal name, keeping connective particles lower case.
+
+    The first word is always capitalised; recognised particles elsewhere stay
+    lower case. Applies to hyphenated parts too (Jean-Pierre). Runs even on
+    user-typed names, since fixing case on a radio keypad is awkward.
+    """
+    words = raw.split()
+    out = []
+    for i, word in enumerate(words):
+        subs = word.split("-")
+        cased = []
+        for j, s in enumerate(subs):
+            if not s:
+                cased.append(s)
+                continue
+            low = s.lower()
+            if i == 0 and j == 0:
+                cased.append(low[:1].upper() + low[1:])
+            elif low in NAME_PARTICLES:
+                cased.append(low)
+            else:
+                cased.append(low[:1].upper() + low[1:])
+        out.append("-".join(cased))
+    return " ".join(out)
+
+
 # --------------------------------------------------------------------------- #
 # Configuration
 # --------------------------------------------------------------------------- #
@@ -186,6 +220,18 @@ def load_config(path):
         "rx_timeout": cfg.getint("messaging", "rx_timeout", fallback=90),
 
         "db_path": cfg.get("db", "path", fallback="/var/lib/pktnet/pktnet.db"),
+
+        # Certificate flow (optional). enable=false keeps it off.
+        "cert_enable": cfg.getboolean("cert", "enable", fallback=False),
+        "cert_dir": cfg.get("cert", "dir", fallback="/var/lib/pktnet/certs"),
+        "cert_users_db": cfg.get("cert", "users_db",
+                                 fallback="/var/lib/pktnet/certs/users.db"),
+        "cert_flow_timeout_min": cfg.getint("cert", "flow_timeout_min",
+                                            fallback=10),
+        "cert_org": cfg.get("cert", "org", fallback="PP5PK"),
+        "cert_site": cfg.get("cert", "site", fallback="pp5pk.net"),
+        "cert_radio": cfg.get("cert", "radio",
+                              fallback="/var/lib/pktnet/certs/pktnet_radio.png"),
     }
 
     if not out["login_call"] or not out["passcode"] or not out["net_call"]:
@@ -232,6 +278,22 @@ def init_db(path):
             callsign      TEXT PRIMARY KEY,
             joined_utc    TEXT NOT NULL,
             last_seen_utc TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS cert_flow (
+            callsign     TEXT PRIMARY KEY,   -- source call currently in a flow
+            event_id     INTEGER,
+            state        TEXT NOT NULL,      -- reuse|await_email|confirm_name|await_name
+            email        TEXT,
+            name_cand    TEXT,
+            updated_utc  TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS cert_contacts (
+            callsign     TEXT PRIMARY KEY,   -- base call
+            email        TEXT,
+            name         TEXT,
+            updated_utc  TEXT NOT NULL
         );
         """
     )
@@ -391,6 +453,71 @@ def room_prune(conn, deadline_iso):
     """Remove members whose last activity is older than deadline_iso."""
     conn.execute("DELETE FROM room_members WHERE last_seen_utc < ?",
                  (deadline_iso,))
+    conn.commit()
+
+
+# --- certificate flow ------------------------------------------------------ #
+
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def looks_like_email(text):
+    return bool(EMAIL_RE.match(text.strip()))
+
+
+def lookup_operator_name(users_db_path, base):
+    """Look up the full name for a base callsign in the (read-only) users DB."""
+    if not users_db_path or not os.path.exists(users_db_path):
+        return None
+    try:
+        uri = "file:{}?mode=ro".format(users_db_path)
+        c = sqlite3.connect(uri, uri=True)
+        row = c.execute("SELECT name FROM users WHERE callsign = ?",
+                        (base,)).fetchone()
+        c.close()
+        return row[0] if row and row[0] and row[0].strip() else None
+    except sqlite3.Error:
+        return None
+
+
+def set_cert_flow(conn, call, event_id, state, email, name_cand, now_iso):
+    conn.execute(
+        "INSERT INTO cert_flow (callsign, event_id, state, email, name_cand, "
+        "updated_utc) VALUES (?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT(callsign) DO UPDATE SET event_id=excluded.event_id, "
+        "state=excluded.state, email=excluded.email, "
+        "name_cand=excluded.name_cand, updated_utc=excluded.updated_utc",
+        (call, event_id, state, email, name_cand, now_iso))
+    conn.commit()
+
+
+def get_cert_flow(conn, call):
+    return conn.execute("SELECT * FROM cert_flow WHERE callsign = ?",
+                        (call,)).fetchone()
+
+
+def clear_cert_flow(conn, call):
+    conn.execute("DELETE FROM cert_flow WHERE callsign = ?", (call,))
+    conn.commit()
+
+
+def prune_cert_flows(conn, deadline_iso):
+    conn.execute("DELETE FROM cert_flow WHERE updated_utc < ?", (deadline_iso,))
+    conn.commit()
+
+
+def get_cert_contact(conn, base):
+    return conn.execute("SELECT * FROM cert_contacts WHERE callsign = ?",
+                        (base,)).fetchone()
+
+
+def save_cert_contact(conn, base, email, name, now_iso):
+    conn.execute(
+        "INSERT INTO cert_contacts (callsign, email, name, updated_utc) "
+        "VALUES (?, ?, ?, ?) ON CONFLICT(callsign) DO UPDATE SET "
+        "email=excluded.email, name=excluded.name, "
+        "updated_utc=excluded.updated_utc",
+        (base, email, name, now_iso))
     conn.commit()
 
 
@@ -627,6 +754,11 @@ class PktNetBot:
 
         if is_room:
             self._handle_room(source, text)
+            return
+
+        # In the middle of a certificate flow? Route the reply there.
+        if self.cfg["cert_enable"] and self._cert_flow_active(source):
+            self._handle_cert_flow(source, text)
             return
 
         # Remote-control command?
@@ -908,6 +1040,163 @@ class PktNetBot:
             LOG.info("%s already logged into event #%s",
                      source, event["event_id"])
         self._enqueue_reply(source, reply)
+
+        # Offer a certificate on a first-time check-in.
+        if is_new and self.cfg["cert_enable"]:
+            self._start_cert_flow(source, event["event_id"])
+
+    # -- certificate flow -------------------------------------------------- #
+
+    def _cert_flow_active(self, source):
+        deadline = (datetime.now(timezone.utc) - timedelta(
+            minutes=self.cfg["cert_flow_timeout_min"])).isoformat()
+        prune_cert_flows(self.conn, deadline)
+        return get_cert_flow(self.conn, source) is not None
+
+    def _start_cert_flow(self, source, event_id):
+        conn = self.conn
+        now_iso = datetime.now(timezone.utc).isoformat()
+        contact = get_cert_contact(conn, base_call(source))
+        if contact and contact["email"]:
+            set_cert_flow(conn, source, event_id, "reuse", contact["email"],
+                          contact["name"], now_iso)
+            self._enqueue_reply(source, "Use previous info? YES / NO / new email")
+            nm = contact["name"] or "?"
+            em = contact["email"]
+            combined = "Prev: {} / {}".format(nm, em)
+            if len(combined) <= APRS_MAX_TEXT:
+                self._enqueue_reply(source, combined)
+            else:
+                self._enqueue_reply(source, "Prev name: " + nm)
+                self._enqueue_reply(source, "Prev email: " + em)
+        else:
+            set_cert_flow(conn, source, event_id, "await_email", None, None,
+                          now_iso)
+            self._enqueue_reply(
+                source, "Want a certificate? Reply your email (only to send "
+                "it) or NO")
+
+    def _handle_cert_flow(self, source, text):
+        conn = self.conn
+        row = get_cert_flow(conn, source)
+        if row is None:
+            return
+        now_iso = datetime.now(timezone.utc).isoformat()
+        t = text.strip()
+        low = t.lower()
+
+        if low in ("no", "nao", "n", "cancel"):
+            clear_cert_flow(conn, source)
+            self._enqueue_reply(source, "OK, no certificate. 73!")
+            return
+
+        state = row["state"]
+
+        if state == "reuse":
+            if low in ("yes", "sim", "y", "ok"):
+                self._finish_cert(source, row["event_id"], row["email"],
+                                  row["name_cand"])
+            elif looks_like_email(t):
+                self._after_cert_email(source, row["event_id"], t)
+            else:
+                self._enqueue_reply(source, "Reply YES, a new email, or NO")
+            return
+
+        if state == "await_email":
+            if looks_like_email(t):
+                self._after_cert_email(source, row["event_id"], t)
+            else:
+                self._enqueue_reply(source, "Please reply a valid email or NO")
+            return
+
+        if state == "confirm_name":
+            name = row["name_cand"] if low in ("yes", "sim", "y", "ok") \
+                else t[:40]
+            self._finish_cert(source, row["event_id"], row["email"], name)
+            return
+
+        if state == "await_name":
+            self._finish_cert(source, row["event_id"], row["email"], t[:40])
+            return
+
+    def _after_cert_email(self, source, event_id, email):
+        conn = self.conn
+        now_iso = datetime.now(timezone.utc).isoformat()
+        found = lookup_operator_name(self.cfg["cert_users_db"],
+                                     base_call(source))
+        name = name_case(found) if found else None
+        if name:
+            set_cert_flow(conn, source, event_id, "confirm_name", email, name,
+                          now_iso)
+            self._enqueue_reply(
+                source, "Name: {}. Reply YES to use it, or send the name"
+                .format(name))
+        else:
+            set_cert_flow(conn, source, event_id, "await_name", email, None,
+                          now_iso)
+            self._enqueue_reply(source, "Send the name for the certificate")
+
+    def _finish_cert(self, source, event_id, email, name):
+        conn = self.conn
+        now_iso = datetime.now(timezone.utc).isoformat()
+        base = base_call(source)
+        name = name_case((name or "").strip()) if (name or "").strip() else base
+        save_cert_contact(conn, base, email, name, now_iso)
+        clear_cert_flow(conn, source)
+        path = self._generate_cert(event_id, source, base, name)
+        if path:
+            LOG.info("Certificate for %s (%s) -> %s [email: %s]",
+                     base, name, path, email)
+            self._enqueue_reply(source, "Certificate ready as {}! 73".format(
+                name))
+        else:
+            self._enqueue_reply(source, "Sorry, could not build the "
+                                        "certificate right now.")
+
+    def _generate_cert(self, event_id, source, callsign, name):
+        """Render one certificate PDF. Returns the path or None on failure.
+
+        `source` is the full call used to find the check-in time; `callsign`
+        is the upper-case base call shown on the certificate.
+        """
+        try:
+            from pktnet_cert import (draw_certificate, fmt_date_br,
+                                     fmt_time_utc, safe_filename, _load_image)
+        except Exception as exc:  # reportlab or module missing
+            LOG.warning("Certificate module unavailable: %s", exc)
+            return None
+        conn = self.conn
+        event = conn.execute("SELECT * FROM events WHERE event_id = ?",
+                             (event_id,)).fetchone()
+        if event is None:
+            return None
+        row = conn.execute(
+            "SELECT ts_utc FROM checkins WHERE event_id = ? AND callsign = ?",
+            (event_id, source)).fetchone()
+        ts = row["ts_utc"] if row else datetime.now(timezone.utc).isoformat()
+        ctx = {
+            "net_call": event["net_call"],
+            "event_name": event["name"],
+            "date_br": fmt_date_br(event["event_date"]),
+            "year": (event["event_date"] or "")[:4],
+            "callsign": callsign,
+            "op_name": name,
+            "checkin_time": fmt_time_utc(ts),
+            "org": self.cfg["cert_org"],
+            "site": self.cfg["cert_site"],
+            "radio": _load_image(self.cfg["cert_radio"]),
+        }
+        try:
+            os.makedirs(self.cfg["cert_dir"], exist_ok=True)
+            fname = "{}_ev{}_{}.pdf".format(
+                safe_filename(event["net_call"]), event_id,
+                safe_filename(callsign))
+            out = os.path.join(self.cfg["cert_dir"], fname)
+            draw_certificate(out, ctx)
+            return out
+        except Exception as exc:
+            LOG.warning("Certificate render failed: %s", exc)
+            return None
 
     def _ensure_adhoc_event(self, now):
         date_str = now.strftime("%Y-%m-%d")
