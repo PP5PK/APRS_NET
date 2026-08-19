@@ -121,8 +121,6 @@ sequenceDiagram
 
   ```bash
   sudo apt install python3-reportlab
-  # fallback, if the package is not in your repository:
-  # pip install reportlab --break-system-packages
   ```
 
   The faint background radio image needs Pillow, which `python3-reportlab`
@@ -189,7 +187,7 @@ sudo chown pktnet:pktnet /var/lib/pktnet
 sudo cp /opt/APRS_NET/pktnet.conf.example /etc/pktnet/pktnet.conf
 sudo chown root:pktnet /etc/pktnet/pktnet.conf
 sudo chmod 0640 /etc/pktnet/pktnet.conf
-sudo nano /etc/pktnet/pktnet.conf         # fill in your passcode
+sudo nano /etc/pktnet/pktnet.conf         # fill in your personal data
 
 sudo apt install python3-reportlab        # for certificates
 sudo ln -sf /opt/APRS_NET/pktnet_cert.py /usr/local/bin/pktnet_cert
@@ -198,6 +196,7 @@ sudo ln -sf /opt/APRS_NET/pktnet_cert.py /usr/local/bin/pktnet_cert
 sudo tee /etc/systemd/system/pktnet.service >/dev/null <<'UNIT'
 [Unit]
 Description=PKTNET APRS Net check-in bot
+Documentation=https://github.com/PP5PK/APRS_NET
 After=network-online.target
 Wants=network-online.target
 
@@ -205,9 +204,11 @@ Wants=network-online.target
 Type=simple
 User=pktnet
 Group=pktnet
-ExecStart=/opt/APRS_NET/pktnet_bot.py run --config /etc/pktnet/pktnet.conf
+ExecStart=/usr/bin/python3 /opt/APRS_NET/pktnet_bot.py run --config /etc/pktnet/pktnet.conf
 Restart=on-failure
 RestartSec=10
+
+# Hardening
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
@@ -249,7 +250,7 @@ contains your passcode.
 
 | Section | Key | Default | Description |
 |---------|-----|---------|-------------|
-| `aprsis` | `server` | `rotate.aprs2.net` | APRS-IS server to connect to. |
+| `aprsis` | `server` | `firenet.us` | APRS-IS server to connect to. |
 | `aprsis` | `port` | `14580` | Filtered APRS-IS port. |
 | `aprsis` | `login_call` | — | Verified login identity for the connection (e.g. `PP5PK-3`). Use an SSID that is **not** used by your igate or personal station. |
 | `aprsis` | `passcode` | — | Your APRS-IS passcode. |
@@ -327,26 +328,26 @@ Any unrecognised text is treated as a normal check-in.
 
 | Command | Reply |
 |---------|-------|
-| `CHECK_#` | Active net name and number of check-ins. |
-| `CHECK_LAST` | The last 5 callsigns to check in. |
-| `CHECK_TIME` | Time remaining in the active net (or that none is running). |
-| `CHECK_ME` | How many nets your base callsign has joined (all SSIDs counted together), plus your per-SSID check-in times in the active net. |
-| `CHECK_RESEND` | Re-generate and re-send your certificate for your latest net to the email on file (only when `[cert]` is enabled). |
-| `CHECK_HELP` | Lists the commands available to you (admins see the admin ones too). |
+| `STATUS` | Active net name and number of check-ins. |
+| `LAST` | The last 5 callsigns to check in. |
+| `TIME` | Time remaining in the active net (or that none is running). |
+| `ME` | How many nets your base callsign has joined (all SSIDs counted together), plus your per-SSID check-in times in the active net. |
+| `RESEND` | Re-generate and re-send your certificate for your latest net to the email on file (only when `[cert]` is enabled). |
+| `HELP` | Lists the commands available to you (admins see the admin ones too). |
 
 **Admin** — only callsigns in `admin_calls` (matched by base call):
 
 | Command | Action |
 |---------|--------|
-| `CHECK_USERS` | List every callsign in the active net (split across messages if long). |
-| `CHECK_START [name]` | Start a net for today (until 23:59:59 UTC), regardless of `require_active_event`. An optional name follows the command (`CHECK_START Rede da Serra`); without one it is named by date. |
-| `CHECK_STOP` | End the active net now. |
-| `CHECK_PAUSE` | Pause the net; check-ins get the `paused_text` maintenance reply and are not logged. |
-| `CHECK_RESTART` | Resume a paused net. |
+| `USERS` | List every callsign in the active net (split across messages if long). |
+| `START [name]` | Start a net for today (until 23:59:59 UTC), regardless of `require_active_event`. An optional name follows the command (`START Rede da Serra`); without one it is named by date. |
+| `STOP` | End the active net now. |
+| `PAUSE` | Pause the net; check-ins get the `paused_text` maintenance reply and are not logged. |
+| `RESTART` | Resume a paused net. |
 
 An admin command sent by a non-admin is ignored (treated as a check-in), so the
 admin commands stay invisible to ordinary participants. In `require_active_event
-= false` mode, `CHECK_STOP` returns the bot to its always-on behaviour (new
+= false` mode, `STOP` returns the bot to its always-on behaviour (new
 check-ins log into the undated daily net).
 
 ### Group chat room
