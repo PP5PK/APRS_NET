@@ -181,6 +181,20 @@ run chmod 0640 "${CONF_FILE}" 2>/dev/null || true
 # --- 4) data --------------------------------------------------------------- #
 info "Preparing data directory ${DATA_DIR}"
 run mkdir -p "${DATA_DIR}"
+
+# Certificate source data: copy the repo's certs/ (name database, CSV and the
+# background image) into the runtime certs dir, so a fresh install works without
+# a manual copy. Generated PDFs are written here at runtime.
+CERT_DIR="${DATA_DIR}/certs"
+run mkdir -p "${CERT_DIR}"
+if [ -d "${SRC_DIR}/certs" ]; then
+  for f in users.db users_base.csv pktnet_radio.png; do
+    if [ -f "${SRC_DIR}/certs/${f}" ]; then
+      run install -m 0644 "${SRC_DIR}/certs/${f}" "${CERT_DIR}/${f}"
+    fi
+  done
+fi
+
 run chown -R "${SVC_USER}":"${SVC_USER}" "${DATA_DIR}"
 
 # --- 5) systemd unit (generated with correct paths) ------------------------ #

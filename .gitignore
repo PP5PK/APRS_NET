@@ -1,16 +1,10 @@
 # Local configuration (contains your APRS-IS passcode) - never commit
 pktnet.conf
 
-# Databases and generated data
-*.db
-*.db-wal
-*.db-shm
-
-# Generated certificates
-certs/
-*.pdf
-# keep the sample if you want it in the repo:
-!exemplo_certificado.pdf
+# The runtime database and generated certificates live under
+# /var/lib/pktnet/ (outside this repo), so nothing here needs to ignore them.
+# The certs/ folder in this repo is the versioned source data (users.db,
+# users_base.csv, pktnet_radio.png, sample PDF, DB build scripts) and IS tracked.
 
 # Python bytecode
 __pycache__/
