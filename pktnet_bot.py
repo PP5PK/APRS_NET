@@ -246,6 +246,7 @@ def load_config(path):
         "email_password": cfg.get("email", "password", fallback=""),
         "email_from": cfg.get("email", "from", fallback=""),
         "email_from_name": cfg.get("email", "from_name", fallback="PKTNET"),
+        "email_reply_to": cfg.get("email", "reply_to", fallback="").strip(),
         "email_subject": cfg.get("email", "subject",
                                  fallback="Your PKTNET participation "
                                           "certificate"),
@@ -1194,6 +1195,8 @@ class PktNetBot:
             msg["Subject"] = cfg["email_subject"]
             msg["From"] = formataddr((cfg["email_from_name"], cfg["email_from"]))
             msg["To"] = to_addr
+            if cfg["email_reply_to"]:
+                msg["Reply-To"] = cfg["email_reply_to"]
             msg.set_content(cfg["email_body"].format(name=name))
             with open(pdf_path, "rb") as fh:
                 data = fh.read()

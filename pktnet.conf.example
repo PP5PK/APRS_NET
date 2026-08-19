@@ -1,15 +1,14 @@
 # PKTNET bot configuration
-# Copy to /etc/pktnet/pktnet.conf and fill in your passcode (can be obtained at http://aprs.dvbr.net).
+# Copy to /etc/pktnet/pktnet.conf and fill in your passcode (can be obtained at aprs.dvbr.net).
 # Keep the real file out of your git repository (it holds the passcode).
 
 [aprsis]
-# A tier-2 rotate works; prefer a regional pool for your location.
-server = firenet.us
+# A tier-2 rotate works; for Brazil you may prefer a regional pool.
+server = rotate.aprs2.net
 port = 14580
 
 # Verified login identity for the connection. The passcode is derived from
 # the BASE callsign (PP5PK), so it is the same with or without the SSID.
-# Passwords can be obtained through the website https://aprs.dvbr.net.
 login_call = PP5PK-3
 passcode = 00000
 
@@ -88,5 +87,8 @@ password = PUT-YOUR-BREVO-SMTP-KEY-HERE
 # Envelope/sender shown to recipients (must be on the authenticated domain).
 from = daniel@pp5pk.net
 from_name = PP5PK PKTNET
+# Optional: where replies should go (can be ANY address, e.g. a Gmail you read
+# often). Does not affect SPF/DKIM. Leave empty to reply to 'from'.
+reply_to =
 subject = Your PKTNET participation certificate
 
