@@ -1,10 +1,10 @@
 # PKTNET bot configuration
-# Copy to /etc/pktnet/pktnet.conf and fill in your passcode (can be obtained at aprs.dvbr.net).
+# Copy to /etc/pktnet/pktnet.conf and fill in your passcode (can be obtained at https://aprs.dvbr.net).
 # Keep the real file out of your git repository (it holds the passcode).
 
 [aprsis]
 # A tier-2 rotate works; for Brazil you may prefer a regional pool.
-server = rotate.aprs2.net
+server = firenet.us
 port = 14580
 
 # Verified login identity for the connection. The passcode is derived from
