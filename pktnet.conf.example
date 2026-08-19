@@ -66,7 +66,7 @@ path = /var/lib/pktnet/pktnet.db
 # certificate, asks for an email, resolves the operator name from users.db
 # (with an interactive confirm/correct step), and renders a PDF.
 # enable = false keeps the whole feature off.
-enable = true
+enable = false
 # Where certificates, the name database and the CSV live.
 dir = /var/lib/pktnet/certs
 # Read-only SQLite name database: table users(callsign, name, city_state).
@@ -83,16 +83,16 @@ flow_timeout_min = 10
 # Email delivery of certificates over SMTP (e.g. Brevo). Off until enabled.
 # Domain pp5pk.net must be authenticated at your provider (SPF + DKIM) or the
 # messages will land in spam. Keep this file out of git - it holds the key.
-enable = true
+enable = false
 host = smtp-relay.brevo.com
 port = 587
 # Brevo SMTP login and the SMTP KEY (not your account password).
-user = b5cd01001@smtp-brevo.com
-password = BSDANVOEAVJAFDSAVGJMWEOPMAIDFPSMJOIDS
+user = your-login@smtp-brevo.com
+password = PUT-YOUR-BREVO-SMTP-KEY-HERE
 # Envelope/sender shown to recipients (must be on the authenticated domain).
 from = aprs@pp5pk.net
 from_name = Daniel K. [APRS PKTNET / PKTQSO]
 # Optional: where replies should go (can be ANY address, e.g. a Gmail you read
 # often). Does not affect SPF/DKIM. Leave empty to reply to 'from'.
-reply_to = svrutz@gmail.com
+reply_to =
 subject = Your APRS PKTNET participation certificate
