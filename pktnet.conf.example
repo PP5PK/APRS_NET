@@ -74,3 +74,18 @@ site = pp5pk.net
 # Abandon an unfinished certificate conversation after this many minutes.
 flow_timeout_min = 10
 
+[email]
+# Email delivery of certificates over SMTP (e.g. Brevo). Off until enabled.
+# Domain pp5pk.net must be authenticated at your provider (SPF + DKIM) or the
+# messages will land in spam. Keep this file out of git - it holds the key.
+enable = false
+host = smtp-relay.brevo.com
+port = 587
+# Brevo SMTP login and the SMTP KEY (not your account password).
+user = your-login@smtp-brevo.com
+password = PUT-YOUR-BREVO-SMTP-KEY-HERE
+# Envelope/sender shown to recipients (must be on the authenticated domain).
+from = daniel@pp5pk.net
+from_name = PP5PK PKTNET
+subject = Your PKTNET participation certificate
+

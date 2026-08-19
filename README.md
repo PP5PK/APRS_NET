@@ -397,6 +397,18 @@ bot renders and stores it, and remembers the address.)
 Put `users.db` (and, if you use it, the background `pktnet_radio.png`) in the
 `[cert] dir` folder — by default `/var/lib/pktnet/certs/`.
 
+#### Emailing certificates
+
+With `[email] enable = true` the bot emails each PDF as an attachment right
+after it is generated, over SMTP. It is designed for a transactional provider
+such as **Brevo**: put the SMTP host, port, login and **SMTP key** in the
+`[email]` section, and set `from` to an address on a domain you have
+authenticated (SPF + DKIM) at the provider — otherwise the mail lands in spam.
+The send runs in the background so it never stalls the APRS loop, and the body
+carries a short notice that the address is used only to deliver the certificate.
+Because the config holds the SMTP key, keep `pktnet.conf` out of git (it already
+is, via `.gitignore`).
+
 #### Command-line generator
 
 ```bash

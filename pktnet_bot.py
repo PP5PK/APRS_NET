@@ -40,11 +40,15 @@ import os
 import re
 import select
 import signal
+import smtplib
 import socket
 import sqlite3
 import sys
+import threading
 import time
 from datetime import datetime, timezone, timedelta
+from email.message import EmailMessage
+from email.utils import formataddr
 
 # --------------------------------------------------------------------------- #
 # Defaults
@@ -232,6 +236,26 @@ def load_config(path):
         "cert_site": cfg.get("cert", "site", fallback="pp5pk.net"),
         "cert_radio": cfg.get("cert", "radio",
                               fallback="/var/lib/pktnet/certs/pktnet_radio.png"),
+
+        # Email delivery of certificates (SMTP, e.g. Brevo). Off by default.
+        "email_enable": cfg.getboolean("email", "enable", fallback=False),
+        "email_host": cfg.get("email", "host",
+                              fallback="smtp-relay.brevo.com"),
+        "email_port": cfg.getint("email", "port", fallback=587),
+        "email_user": cfg.get("email", "user", fallback=""),
+        "email_password": cfg.get("email", "password", fallback=""),
+        "email_from": cfg.get("email", "from", fallback=""),
+        "email_from_name": cfg.get("email", "from_name", fallback="PKTNET"),
+        "email_subject": cfg.get("email", "subject",
+                                 fallback="Your PKTNET participation "
+                                          "certificate"),
+        "email_body": cfg.get("email", "body", fallback=(
+            "Hello {name},\n\n"
+            "Attached is your certificate for taking part in the PKTNET "
+            "amateur radio net.\n\n"
+            "Your email address was used only to deliver this certificate "
+            "and is not shared with anyone.\n\n"
+            "73 de PP5PK")),
     }
 
     if not out["login_call"] or not out["passcode"] or not out["net_call"]:
@@ -1144,14 +1168,46 @@ class PktNetBot:
         save_cert_contact(conn, base, email, name, now_iso)
         clear_cert_flow(conn, source)
         path = self._generate_cert(event_id, source, base, name)
-        if path:
-            LOG.info("Certificate for %s (%s) -> %s [email: %s]",
-                     base, name, path, email)
-            self._enqueue_reply(source, "Certificate ready as {}! 73".format(
-                name))
-        else:
+        if not path:
             self._enqueue_reply(source, "Sorry, could not build the "
                                         "certificate right now.")
+            return
+        LOG.info("Certificate for %s (%s) -> %s [email: %s]",
+                 base, name, path, email)
+        if self.cfg["email_enable"] and email and self.cfg["email_from"]:
+            self._send_cert_email_async(email, name, path)
+            self._enqueue_reply(source, "Sent to {}! 73".format(email))
+        else:
+            self._enqueue_reply(source, "Certificate ready as {}! 73".format(
+                name))
+
+    def _send_cert_email_async(self, to_addr, name, pdf_path):
+        """Send the certificate email in a background thread so the SMTP round
+        trip never blocks the APRS loop."""
+        threading.Thread(target=self._send_cert_email,
+                         args=(to_addr, name, pdf_path), daemon=True).start()
+
+    def _send_cert_email(self, to_addr, name, pdf_path):
+        cfg = self.cfg
+        try:
+            msg = EmailMessage()
+            msg["Subject"] = cfg["email_subject"]
+            msg["From"] = formataddr((cfg["email_from_name"], cfg["email_from"]))
+            msg["To"] = to_addr
+            msg.set_content(cfg["email_body"].format(name=name))
+            with open(pdf_path, "rb") as fh:
+                data = fh.read()
+            msg.add_attachment(data, maintype="application", subtype="pdf",
+                               filename=os.path.basename(pdf_path))
+            with smtplib.SMTP(cfg["email_host"], cfg["email_port"],
+                              timeout=30) as smtp:
+                smtp.starttls()
+                if cfg["email_user"]:
+                    smtp.login(cfg["email_user"], cfg["email_password"])
+                smtp.send_message(msg)
+            LOG.info("Certificate emailed to %s", to_addr)
+        except Exception as exc:
+            LOG.warning("Certificate email to %s failed: %s", to_addr, exc)
 
     def _generate_cert(self, event_id, source, callsign, name):
         """Render one certificate PDF. Returns the path or None on failure.
