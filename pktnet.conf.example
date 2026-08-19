@@ -1,14 +1,14 @@
 # PKTNET bot configuration
-# Copy to /etc/pktnet/pktnet.conf and fill in your passcode (can be obtained at aprs.dvbr.net).
-# Keep the real file out of your git repository (it holds the passcode).
+# Copy to /etc/pktnet/pktnet.conf and fill in your passcode.
 
 [aprsis]
-# A tier-2 rotate works; for Brazil you may prefer a regional pool.
-server = rotate.aprs2.net
+# A tier-2 rotate works; prefer a regional pool for your location.
+server = firenet.us
 port = 14580
 
 # Verified login identity for the connection. The passcode is derived from
 # the BASE callsign (PP5PK), so it is the same with or without the SSID.
+# Passwords can be obtained through the website https://aprs.dvbr.net.
 login_call = PP5PK-3
 passcode = 00000
 
@@ -36,10 +36,8 @@ paused_text  = PKTNET under maintenance, try again in a few minutes.
 
 # Callsigns allowed to send ADMIN remote-control commands to the net callsign
 # (matched by base call, SSID ignored). Leave empty to disable admin commands.
-#   Public (anyone): CHECK_#, CHECK_LAST, CHECK_TIME, CHECK_ME, CHECK_RESEND,
-#                    CHECK_HELP
-#   Admin  (below):  CHECK_USERS, CHECK_START, CHECK_STOP, CHECK_PAUSE,
-#                    CHECK_RESTART
+#   Public (anyone): STATUS, LAST, TIME, ME, RESEND, HELP
+#   Admin  (below):  USERS, START, STOP, PAUSE, RESTART
 admin_calls = PP5MFA
 
 [room]
@@ -52,7 +50,7 @@ timeout_min = 1440
 # Maximum members in the room.
 max_members = 50
 # Minimum seconds between a member's relayed messages (flood guard).
-min_interval = 10
+min_interval = 5
 
 [messaging]
 max_retries = 3
@@ -68,7 +66,7 @@ path = /var/lib/pktnet/pktnet.db
 # certificate, asks for an email, resolves the operator name from users.db
 # (with an interactive confirm/correct step), and renders a PDF.
 # enable = false keeps the whole feature off.
-enable = false
+enable = true
 # Where certificates, the name database and the CSV live.
 dir = /var/lib/pktnet/certs
 # Read-only SQLite name database: table users(callsign, name, city_state).
@@ -85,17 +83,16 @@ flow_timeout_min = 10
 # Email delivery of certificates over SMTP (e.g. Brevo). Off until enabled.
 # Domain pp5pk.net must be authenticated at your provider (SPF + DKIM) or the
 # messages will land in spam. Keep this file out of git - it holds the key.
-enable = false
+enable = true
 host = smtp-relay.brevo.com
 port = 587
 # Brevo SMTP login and the SMTP KEY (not your account password).
-user = your-login@smtp-brevo.com
-password = PUT-YOUR-BREVO-SMTP-KEY-HERE
+user = b5cd01001@smtp-brevo.com
+password = BSDANVOEAVJAFDSAVGJMWEOPMAIDFPSMJOIDS
 # Envelope/sender shown to recipients (must be on the authenticated domain).
-from = daniel@pp5pk.net
-from_name = PP5PK PKTNET
+from = aprs@pp5pk.net
+from_name = Daniel K. [APRS PKTNET / PKTQSO]
 # Optional: where replies should go (can be ANY address, e.g. a Gmail you read
 # often). Does not affect SPF/DKIM. Leave empty to reply to 'from'.
-reply_to =
-subject = Your PKTNET participation certificate
-
+reply_to = svrutz@gmail.com
+subject = Your APRS PKTNET participation certificate
