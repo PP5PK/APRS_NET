@@ -5,14 +5,14 @@ echo ""
 FILE_SIZE=$(wget --spider --server-response https://radioid.net/static/user.csv 2>&1 | grep -i Content-Length | awk '{print $2}')
 if [ -z "$FILE_SIZE" ]; then
     echo "Downloading..."
-    wget -q -O /xlxd/users_db/user.csv https://radioid.net/static/user.csv
+    wget -q -O /var/lib/pktnet/certs/user.csv https://radioid.net/static/user.csv
 else
     echo "File size: $FILE_SIZE bytes"
-    wget -q -O - https://radioid.net/static/user.csv | pv --force -p -t -r -b -s "$FILE_SIZE" > /xlxd/users_db/user.csv
+    wget -q -O - https://radioid.net/static/user.csv | pv --force -p -t -r -b -s "$FILE_SIZE" > /var/lib/pktnet/certs/user.csv
 fi
 
 # Checks if files exist
-if [ ! -f "/xlxd/users_db/users_base.csv" ] || [ ! -f "/xlxd/users_db/user.csv" ]; then
+if [ ! -f "/var/lib/pktnet/certs/users_base.csv" ] || [ ! -f "/var/lib/pktnet/certs/user.csv" ]; then
     echo "Error: One or both of the files (users_base.csv or user.csv) were not found."
     exit 1
 fi
@@ -23,7 +23,7 @@ fi
 #   - RADIO_ID not in base                : insert full line from user.csv
 #   - RADIO_ID only in base               : keep full base line
 #   - Empty RADIO_ID (repeaters/manual)   : always preserve as-is, never modified
-TEMP_FILE=$(mktemp /xlxd/users_db/users_base_tmp.XXXXXX)
+TEMP_FILE=$(mktemp /var/lib/pktnet/certs/users_base_tmp.XXXXXX)
 
 awk -F',' -v OFS=',' '
 NR==FNR {
@@ -50,15 +50,15 @@ END {
     }
     for (k in no_id) print no_id[k]
 }
-' /xlxd/users_db/users_base.csv /xlxd/users_db/user.csv \
+' /var/lib/pktnet/certs/users_base.csv /var/lib/pktnet/certs/user.csv \
     | awk -F',' 'NR==1 || $1!="" {print | "sort -t, -k1,1n"} $1=="" {print}' \
     > "$TEMP_FILE"
 
-mv "$TEMP_FILE" /xlxd/users_db/users_base.csv
+mv "$TEMP_FILE" /var/lib/pktnet/certs/users_base.csv
 echo "Merge complete. users_base.csv updated."
 
 # Recreates the updated database
 echo "Creating database"
-php /xlxd/users_db/create_user_db.php
+php /var/lib/pktnet/certs/create_user_db.php
 echo "Database updated successfully!"
 echo ""
