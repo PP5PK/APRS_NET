@@ -286,16 +286,15 @@ contains your passcode.
 | `net` | `admin_calls` | *(empty)* | Callsigns allowed to send admin remote-control commands (matched by base call, SSID ignored). Empty disables admin commands. |
 | `net` | `paused_text` | `PKTNET under maintenance...` | Reply sent to check-ins while the net is paused. |
 | `room` | `room_call` | *(empty)* | Group-chat room callsign (e.g. `PKTQSO`). Empty disables the room. |
-| `room` | `timeout_min` | `1440` | Drop room members idle for this many minutes. |
-| `room` | `max_members` | `50` | Maximum members in the room. |
-| `room` | `min_interval` | `10` | Minimum seconds between a member's relayed messages. |
+| `room` | `timeout_min` | `60` | Drop room members idle for this many minutes. |
+| `room` | `max_members` | `30` | Maximum members in the room. |
+| `room` | `min_interval` | `3` | Minimum seconds between a member's relayed messages. |
 | `cert` | `enable` | `false` | Turn the interactive certificate flow on or off. |
 | `cert` | `dir` | `/var/lib/pktnet/certs` | Folder for generated PDFs, `users.db` and the CSV. |
 | `cert` | `users_db` | `.../certs/users.db` | Read-only name database `users(callsign, name, city_state)`. |
 | `cert` | `radio` | `.../certs/pktnet_radio.png` | Optional certificate background image. |
-| `cert` | `Certificate` | `.../certs/certs/Example_certificate.pdf` | Sample of certificate. |
 | `cert` | `org` / `site` | `PP5PK` / `pp5pk.net` | Issuer text on the certificate. |
-| `cert` | `flow_timeout_min` | `15` | Drop an unfinished certificate conversation after N minutes. |
+| `cert` | `flow_timeout_min` | `10` | Drop an unfinished certificate conversation after N minutes. |
 | `email` | `enable` | `false` | Email the generated PDF over SMTP (needs the keys below). |
 | `email` | `host` / `port` | `smtp-relay.brevo.com` / `587` | SMTP server and STARTTLS port. |
 | `email` | `user` / `password` | — | SMTP login and the provider's SMTP key (keep out of git). |
@@ -304,6 +303,7 @@ contains your passcode.
 | `email` | `subject` | `Your PKTNET participation certificate` | Email subject line. |
 | `messaging` | `max_retries` | `3` | Times to retransmit an unacknowledged reply. |
 | `messaging` | `retry_interval` | `30` | Seconds between retransmissions. |
+| `messaging` | `reply_delay` | `1.5` | Seconds to hold a reply after ACKing the incoming message, so the operator's device processes the ACK before the reply arrives (they collide otherwise on a half-duplex RF path). Also spaces consecutive replies. `0` disables. |
 | `messaging` | `keepalive_interval` | `20` | Seconds between keepalive comments. |
 | `messaging` | `rx_timeout` | `90` | Reconnect if no data is received within this many seconds. |
 | `db` | `path` | `/var/lib/pktnet/pktnet.db` | SQLite database path. |

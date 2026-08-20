@@ -224,6 +224,7 @@ def load_config(path):
 
         "max_retries": cfg.getint("messaging", "max_retries", fallback=3),
         "retry_interval": cfg.getint("messaging", "retry_interval", fallback=30),
+        "reply_delay": cfg.getfloat("messaging", "reply_delay", fallback=1.5),
         "keepalive_interval": cfg.getint("messaging", "keepalive_interval",
                                          fallback=20),
         "rx_timeout": cfg.getint("messaging", "rx_timeout", fallback=90),
@@ -625,6 +626,9 @@ class PktNetBot:
         self._out_seq = 0
         # pending[(to_call, msgno)] = {"line": str, "attempts": int, "next": float}
         self.pending = {}
+        # Earliest wall-clock time the next NEW reply may first transmit, used to
+        # space the reply after its ACK and to space consecutive replies.
+        self._tx_gate = 0.0
         self.last_rx = 0.0
         self.last_keepalive = 0.0
         self._room_last = {}   # in-memory per-sender relay cooldown
@@ -1333,8 +1337,15 @@ class PktNetBot:
         from_call = from_call or self.cfg["net_call"]
         msgno = self._next_msgno()
         line = build_message(from_call, to_call, text, msgno)
+        # Hold the first transmission until reply_delay after the ACK we just
+        # sent, so the operator's device receives and processes the ACK before
+        # the reply arrives (they collide otherwise on a half-duplex RF path).
+        # Consecutive replies are spaced by the same amount via _tx_gate.
+        now = time.time()
+        first = max(now, self._tx_gate) + self.cfg["reply_delay"]
+        self._tx_gate = first
         self.pending[(to_call, msgno)] = {
-            "line": line, "attempts": 0, "next": 0.0,
+            "line": line, "attempts": 0, "next": first,
         }
 
     def _service_pending(self, now):

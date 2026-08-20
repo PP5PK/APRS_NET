@@ -38,7 +38,7 @@ paused_text  = PKTNET under maintenance, try again in a few minutes.
 # (matched by base call, SSID ignored). Leave empty to disable admin commands.
 #   Public (anyone): STATUS, LAST, TIME, ME, RESEND, HELP
 #   Admin  (below):  USERS, START, STOP, PAUSE, RESTART
-admin_calls = PP5MFA PP5PK
+admin_calls = PP5MFA
 
 [room]
 # Optional group-chat room. Users send a message to this callsign; anything a
@@ -50,13 +50,17 @@ timeout_min = 1440
 # Maximum members in the room.
 max_members = 50
 # Minimum seconds between a member's relayed messages (flood guard).
-min_interval = 10
+min_interval = 5
 
 [messaging]
 max_retries = 3
 retry_interval = 30
 keepalive_interval = 20
 rx_timeout = 90
+# Seconds to wait after ACKing an incoming message before sending the reply, so
+# the operator's device processes the ACK first (they collide otherwise on RF).
+# Also spaces consecutive replies. 1-2 is a good range; 0 disables the delay.
+reply_delay = 1.5
 
 [db]
 path = /var/lib/pktnet/pktnet.db
@@ -77,7 +81,7 @@ radio = /var/lib/pktnet/certs/pktnet_radio.png
 org = PP5PK
 site = pp5pk.net
 # Abandon an unfinished certificate conversation after this many minutes.
-flow_timeout_min = 15
+flow_timeout_min = 10
 
 [email]
 # Email delivery of certificates over SMTP (e.g. Brevo). Off until enabled.
