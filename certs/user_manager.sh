@@ -1,7 +1,8 @@
 #!/bin/bash
 # =============================================================================
-# Unified XLX Reflector users management tool
-# Features: RadioID database | whitelist | dashboard access (htpasswd) | passwords
+# PKTNET operator database manager
+# Manages the RadioID CSV (certs/users_base.csv) used to resolve operator names
+# for certificates, and can rebuild the SQLite users.db from it.
 #
 # Input wildcards available in entry fields:
 #   X  → cancels the current operation and returns to the previous menu
@@ -12,9 +13,6 @@
 # CONFIGURATION — adjust paths if necessary
 # --------------------------------------------
 DB_FILE="/var/lib/pktnet/certs/users_base.csv"
-HTPASSWD="/var/www/restricted/.htpasswd"
-PENDING_FILE="/var/www/restricted/pendentes.txt"
-WHITELIST="/xlxd/xlxd.whitelist"
 CREATE_DB_PHP="/var/lib/pktnet/certs/create_user_db.php"
 
 ESCAPE="X"
@@ -108,26 +106,6 @@ validate_no_commas() {
         err "Field cannot contain commas."; return 1
     fi
     return 0
-}
-
-validate_callsign() {
-    local U="$1"
-    if [[ ! "$U" =~ ^[A-Z0-9]{3,8}$ ]]; then
-        err "Callsign: 3 to 8 alphanumeric characters (A-Z, 0-9)."
-        return 1
-    fi
-    return 0
-}
-
-generate_password() {
-    tr -dc 'A-Za-z0-9!@#$%^&*()-_=+' < /dev/urandom | head -c 12
-}
-
-add_to_pending() {
-    local U="$1"
-    if ! grep -q "^${U}$" "$PENDING_FILE" 2>/dev/null; then
-        echo "$U" | sudo tee -a "$PENDING_FILE" > /dev/null
-    fi
 }
 
 # =============================================================================
@@ -539,253 +517,6 @@ delete_record() {
 }
 
 # --------------------------------------------
-# ACCESS — ADD USER
-# --------------------------------------------
-add_access_user() {
-    header "ADD USER — WHITELIST AND DASHBOARD"
-    printf "\n"
-
-    pread USER "User callsign" "[${ESCAPE}=cancel]"
-    check_escape "$USER" && return
-    USER=$(echo "$USER" | tr '[:lower:]' '[:upper:]')
-    validate_callsign "$USER" || return
-
-    printf "\n"
-    local CHANGES_MADE=0
-
-    # ── Whitelist ─────────────────────────────────────────────────────────────
-    if grep -q "^${USER}$" "$WHITELIST" 2>/dev/null; then
-        warn "Whitelist: ${USER} is already registered."
-    else
-        pconfirm CWL "Add ${USER} to the reflector whitelist?"
-        if [[ "$CWL" =~ ^[yY]$ ]]; then
-            echo "$USER" | sudo tee -a "$WHITELIST" > /dev/null
-            ok "Added to reflector whitelist."
-            CHANGES_MADE=1
-        else
-            info "Whitelist: no changes made."
-            printf "\n"
-        fi
-    fi
-
-    # ── Dashboard (htpasswd) ──────────────────────────────────────────────────
-    if sudo grep -q "^${USER}:" "$HTPASSWD" 2>/dev/null; then
-        warn "Dashboard: ${USER} already has access."
-    else
-        pconfirm CDASH "Add ${USER} to the dashboard (generates password)?"
-        if [[ "$CDASH" =~ ^[yY]$ ]]; then
-            local PASSWORD
-            PASSWORD=$(generate_password)
-            sudo htpasswd -b "$HTPASSWD" "$USER" "$PASSWORD"
-            add_to_pending "$USER"
-            CHANGES_MADE=1
-            printf "\n"; separator
-            ok "Dashboard access created for ${BOLD}${USER}${RST}${GREEN}!"
-            printf "${CYAN}  %-18s${RST}${BWHITE}%s${RST}\n" "Initial password:" "$PASSWORD"
-            printf "${DIM}  NOTE: user must change the password on first login.${RST}\n"
-            separator
-        else
-            info "Dashboard: no changes made."
-        fi
-    fi
-
-    [[ $CHANGES_MADE -eq 0 ]] && warn "No changes were made."
-}
-
-# --------------------------------------------
-# ACCESS — RESET PASSWORD
-# --------------------------------------------
-reset_password() {
-    header "RESET DASHBOARD PASSWORD"
-    printf "\n"
-
-    pread USER "User callsign" "[${ESCAPE}=cancel]"
-    check_escape "$USER" && return
-    USER=$(echo "$USER" | tr '[:lower:]' '[:upper:]')
-    validate_callsign "$USER" || return
-
-    if ! sudo grep -q "^${USER}:" "$HTPASSWD" 2>/dev/null; then
-        err "User not found in the dashboard!"; return
-    fi
-
-    PASSWORD=$(generate_password)
-    printf "\n"; info "Updating password..."
-    sudo sed -i "/^${USER}:/d" "$HTPASSWD"
-    sudo htpasswd -b "$HTPASSWD" "$USER" "$PASSWORD"
-    add_to_pending "$USER"
-
-    printf "\n"; separator
-    ok "Password changed for ${BOLD}${USER}${RST}${GREEN}!"
-    printf "${CYAN}  %-18s${RST}${BWHITE}%s${RST}\n" "New password:" "$PASSWORD"
-    printf "${DIM}  NOTE: user must change the password on first login.${RST}\n"
-    separator
-}
-
-# --------------------------------------------
-# ACCESS — REMOVE USER
-# --------------------------------------------
-remove_access_user() {
-    header "REMOVE USER — WHITELIST AND DASHBOARD"
-    printf "\n"
-
-    pread USER "User callsign" "[${ESCAPE}=cancel]"
-    check_escape "$USER" && return
-    USER=$(echo "$USER" | tr '[:lower:]' '[:upper:]')
-    validate_callsign "$USER" || return
-
-    local REMOVED=0; printf "\n"
-
-    if sudo grep -q "^${USER}:" "$HTPASSWD" 2>/dev/null; then
-        pconfirm C "Remove dashboard access for ${USER}?"
-        if [[ "$C" =~ ^[yY]$ ]]; then
-            sudo sed -i "/^${USER}:/d" "$HTPASSWD"
-            ok "Removed from dashboard."; REMOVED=1
-        fi
-    else
-        warn "User not found in the dashboard."
-    fi
-
-    if grep -q "^${USER}$" "$WHITELIST" 2>/dev/null; then
-        pconfirm C "Also remove from the whitelist?"
-        if [[ "$C" =~ ^[yY]$ ]]; then
-            sudo sed -i "/^${USER}$/d" "$WHITELIST"
-            ok "Removed from reflector whitelist."; REMOVED=1
-        fi
-    fi
-
-    if grep -q "^${USER}$" "$PENDING_FILE" 2>/dev/null; then
-        sudo sed -i "/^${USER}$/d" "$PENDING_FILE"
-    fi
-
-    [[ $REMOVED -eq 0 ]] && warn "No changes were made."
-}
-
-# --------------------------------------------
-# ACCESS — LOOK UP USER
-# --------------------------------------------
-lookup_access_user() {
-    header "LOOK UP USER — WHITELIST AND DASHBOARD"
-    printf "\n"
-
-    pread USER "User callsign" "[${ESCAPE}=cancel]"
-    check_escape "$USER" && return
-    USER=$(echo "$USER" | tr '[:lower:]' '[:upper:]')
-    validate_callsign "$USER" || return
-
-    printf "\n"
-    separator
-    printf "${BCYAN}  Status: ${BOLD}%s${RST}\n" "$USER"
-    separator
-
-    # Whitelist
-    if grep -q "^${USER}$" "$WHITELIST" 2>/dev/null; then
-        ok "Reflector whitelist:    PRESENT"
-    else
-        err "Reflector whitelist:    ABSENT"
-    fi
-
-    # Dashboard
-    if sudo grep -q "^${USER}:" "$HTPASSWD" 2>/dev/null; then
-        ok "Dashboard access:       PRESENT"
-        # Pending list only makes sense if the user has dashboard access
-        if grep -q "^${USER}$" "$PENDING_FILE" 2>/dev/null; then
-            warn "Pending list:           PRESENT (password not yet changed)"
-        else
-            info "Pending list:           OK (password already changed)"
-        fi
-    else
-        err "Dashboard access:       ABSENT"
-    fi
-
-    separator
-}
-
-# --------------------------------------------
-# MENUS
-# --------------------------------------------
-
-# --------------------------------------------
-# ACCESS — LIST PENDING USERS
-# --------------------------------------------
-list_pending_users() {
-    header "USERS WITH PENDING PASSWORD CHANGE"
-    printf "\n"
-
-    if [[ ! -f "$PENDING_FILE" ]] || [[ ! -s "$PENDING_FILE" ]]; then
-        ok "No users with pending password changes."
-        return
-    fi
-
-    local count=0
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        printf "  ${BYELLOW}•${RST} %s\n" "$line"
-        (( count++ ))
-    done < "$PENDING_FILE"
-
-    printf "\n"
-    if (( count == 0 )); then
-        ok "No users with pending password changes."
-    else
-        info "Total: ${count} user(s) with pending password change."
-    fi
-    separator
-}
-
-# --------------------------------------------
-# ACCESS — LIST WHITELIST IN COLUMNS
-# --------------------------------------------
-list_whitelist() {
-    header "CALLSIGNS ON THE REFLECTOR WHITELIST"
-    printf "\n"
-
-    if [[ ! -f "$WHITELIST" ]] || [[ ! -s "$WHITELIST" ]]; then
-        warn "Whitelist is empty or file not found."
-        return
-    fi
-
-    # Load valid entries: skip blank lines and comments (#)
-    mapfile -t _ENTRIES < <(grep -v '^[[:space:]]*#' "$WHITELIST" | grep -v '^[[:space:]]*$' | sort)
-    local total=${#_ENTRIES[@]}
-
-    if (( total == 0 )); then
-        warn "No callsigns found in the whitelist."
-        return
-    fi
-
-    # Cell width: longest callsign + 2 padding spaces
-    local max_len=0
-    for e in "${_ENTRIES[@]}"; do
-        (( ${#e} > max_len )) && max_len=${#e}
-    done
-    local cell_w=$(( max_len + 2 ))
-    (( cell_w < 6 )) && cell_w=6
-
-    # How many columns fit in the usable area (COLS - 2 indent)
-    local area=$(( COLS - 2 ))
-    local ncols=$(( area / cell_w ))
-    (( ncols < 1 )) && ncols=1
-
-    # Print in columns
-    local col=0
-    printf "  "
-    for e in "${_ENTRIES[@]}"; do
-        printf "${BWHITE}%-*s${RST}" "$cell_w" "$e"
-        (( col++ ))
-        if (( col >= ncols )); then
-            printf "\n  "
-            col=0
-        fi
-    done
-    # Close the last line if it did not end at the edge
-    (( col > 0 )) && printf "\n"
-
-    printf "\n"
-    info "Total: ${total} callsigns on the whitelist."
-    separator
-}
-
-# --------------------------------------------
 # DATABASE — SEARCH WITH FILTER AND PAGINATION
 # --------------------------------------------
 search_database() {
@@ -919,15 +650,33 @@ search_database() {
     rm -f "$TMPFILE"
 }
 
-menu_database() {
+# --------------------------------------------
+# MAIN MENU
+# --------------------------------------------
+main_menu() {
     while true; do
-        header "DATABASE (RadioID)"
+        setup_width
+        clear
+        local title="PKTNET USER DATABASE"
+        local tlen=${#title}
+        local bar; bar=$(printf '%*s' "$BANNER_IN" '' | sed 's/ /═/g')
+        local lpad=$(( (BANNER_IN - tlen) / 2 ))
+        local rpad=$(( BANNER_IN - tlen - lpad ))
+        (( lpad < 0 )) && lpad=0
+        (( rpad < 0 )) && rpad=0
+        local lstr; lstr=$(printf '%*s' "$lpad" '')
+        local rstr; rstr=$(printf '%*s' "$rpad" '')
+        printf "\n"
+        printf "${BCYAN}  ╔%s╗${RST}\n" "$bar"
+        printf "${BCYAN}  ║${RST}%s${BOLD}%s${RST}%s${BCYAN}║${RST}\n" "$lstr" "$title" "$rstr"
+        printf "${BCYAN}  ╚%s╝${RST}\n" "$bar"
+        printf "\n"
         printf "  ${BYELLOW}1)${RST} Add / Edit record\n"
         printf "  ${BYELLOW}2)${RST} Delete record\n"
         printf "  ${BYELLOW}3)${RST} List records by Callsign\n"
         printf "  ${BYELLOW}4)${RST} Search records ${DIM}(filter)${RST}\n"
         printf "  ${BYELLOW}5)${RST} Create / Update SQL database\n"
-        printf "  ${BYELLOW}X)${RST} ${DIM}Back to main menu${RST}\n"
+        printf "  ${BYELLOW}X)${RST} ${DIM}Exit${RST}\n"
         separator
         pread OP "Choice" ""
 
@@ -943,65 +692,6 @@ menu_database() {
                 ;;
             4) search_database ;;
             5) create_sql_database ;;
-            [Xx]) return ;;
-            *) err "Invalid option." ;;
-        esac
-    done
-}
-
-menu_access() {
-    while true; do
-        header "ACCESS CONTROL"
-        printf "  ${BYELLOW}1)${RST} Add user         ${DIM}(whitelist + dashboard)${RST}\n"
-        printf "  ${BYELLOW}2)${RST} Reset password   ${DIM}(dashboard)${RST}\n"
-        printf "  ${BYELLOW}3)${RST} Remove user      ${DIM}(whitelist + dashboard)${RST}\n"
-        printf "  ${BYELLOW}4)${RST} Look up user     ${DIM}(whitelist + dashboard)${RST}\n"
-        printf "  ${BYELLOW}5)${RST} List pending     ${DIM}(password not yet changed)${RST}\n"
-        printf "  ${BYELLOW}6)${RST} List whitelist   ${DIM}(all callsigns)${RST}\n"
-        printf "  ${BYELLOW}X)${RST} ${DIM}Back to main menu${RST}\n"
-        separator
-        pread OP "Choice" ""
-
-        case "$OP" in
-            1) add_access_user ;;
-            2) reset_password ;;
-            3) remove_access_user ;;
-            4) lookup_access_user ;;
-            5) list_pending_users ;;
-            6) list_whitelist ;;
-            [Xx]) return ;;
-            *) err "Invalid option." ;;
-        esac
-    done
-}
-
-main_menu() {
-    while true; do
-        setup_width
-        clear
-        local title="XLX USER MANAGEMENT"
-        local tlen=${#title}
-        local bar; bar=$(printf '%*s' "$BANNER_IN" '' | sed 's/ /═/g')
-        local lpad=$(( (BANNER_IN - tlen) / 2 ))
-        local rpad=$(( BANNER_IN - tlen - lpad ))
-        (( lpad < 0 )) && lpad=0
-        (( rpad < 0 )) && rpad=0
-        local lstr; lstr=$(printf '%*s' "$lpad" '')
-        local rstr; rstr=$(printf '%*s' "$rpad" '')
-        printf "\n"
-        printf "${BCYAN}  ╔%s╗${RST}\n" "$bar"
-        printf "${BCYAN}  ║${RST}%s${BOLD}%s${RST}%s${BCYAN}║${RST}\n" "$lstr" "$title" "$rstr"
-        printf "${BCYAN}  ╚%s╝${RST}\n" "$bar"
-        printf "\n"
-        printf "  ${BYELLOW}1)${RST} Database ${DIM}(RadioID)${RST}\n"
-        printf "  ${BYELLOW}2)${RST} Access control\n"
-        printf "  ${BYELLOW}X)${RST} ${DIM}Exit${RST}\n\n"
-        separator
-        pread OP "Choice" ""
-
-        case "$OP" in
-            1) menu_database ;;
-            2) menu_access ;;
             [Xx]) printf "\n${DIM}  Exiting...${RST}\n\n"; exit 0 ;;
             *) err "Invalid option." ;;
         esac
