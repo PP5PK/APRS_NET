@@ -132,10 +132,10 @@ FONT_VALUE = "Montserrat-Medium.ttf"
 # pktnet_template.png (1248x832); it scales with any same-proportion template.
 LAYOUT = {
     "cx": 0.497,            # horizontal centre of the card frame
-    "callsign_cy": 0.335, "name_cy": 0.446, "event_cy": 0.578,
-    "value_cy": 0.672, "date_x": 0.335, "time_x": 0.610,
-    "callsign_maxw": 0.58, "name_maxw": 0.58, "event_maxw": 0.62,
-    "callsign_size": 96, "name_size": 56, "event_size": 36, "value_size": 24,
+    "callsign_cy": 0.330, "name_cy": 0.458, "event_cy": 0.590,
+    "value_cy": 0.680, "date_x": 0.352, "time_x": 0.628,
+    "callsign_maxw": 0.60, "name_maxw": 0.58, "event_maxw": 0.62,
+    "callsign_size": 108, "name_size": 56, "event_size": 36, "value_size": 24,
 }
 
 
