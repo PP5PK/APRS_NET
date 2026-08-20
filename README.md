@@ -286,15 +286,16 @@ contains your passcode.
 | `net` | `admin_calls` | *(empty)* | Callsigns allowed to send admin remote-control commands (matched by base call, SSID ignored). Empty disables admin commands. |
 | `net` | `paused_text` | `PKTNET under maintenance...` | Reply sent to check-ins while the net is paused. |
 | `room` | `room_call` | *(empty)* | Group-chat room callsign (e.g. `PKTQSO`). Empty disables the room. |
-| `room` | `timeout_min` | `60` | Drop room members idle for this many minutes. |
-| `room` | `max_members` | `30` | Maximum members in the room. |
-| `room` | `min_interval` | `3` | Minimum seconds between a member's relayed messages. |
+| `room` | `timeout_min` | `1440` | Drop room members idle for this many minutes. |
+| `room` | `max_members` | `60` | Maximum members in the room. |
+| `room` | `min_interval` | `10` | Minimum seconds between a member's relayed messages. |
 | `cert` | `enable` | `false` | Turn the interactive certificate flow on or off. |
 | `cert` | `dir` | `/var/lib/pktnet/certs` | Folder for generated PDFs, `users.db` and the CSV. |
 | `cert` | `users_db` | `.../certs/users.db` | Read-only name database `users(callsign, name, city_state)`. |
 | `cert` | `radio` | `.../certs/pktnet_radio.png` | Optional certificate background image. |
+| `cert` | `Certificate` | `.../certs/certs/Example_certificate.pdf` | Sample of certificate. |
 | `cert` | `org` / `site` | `PP5PK` / `pp5pk.net` | Issuer text on the certificate. |
-| `cert` | `flow_timeout_min` | `10` | Drop an unfinished certificate conversation after N minutes. |
+| `cert` | `flow_timeout_min` | `15` | Drop an unfinished certificate conversation after N minutes. |
 | `email` | `enable` | `false` | Email the generated PDF over SMTP (needs the keys below). |
 | `email` | `host` / `port` | `smtp-relay.brevo.com` / `587` | SMTP server and STARTTLS port. |
 | `email` | `user` / `password` | — | SMTP login and the provider's SMTP key (keep out of git). |
