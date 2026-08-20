@@ -55,7 +55,7 @@ Usage: sudo $0 [options]
 
 Options:
   --dir DIR     Install code to DIR (default: ${INSTALL_DIR}).
-  --no-deps     Skip installing python3-reportlab (needed for certificates).
+  --no-deps     Skip installing python3-pil (needed for certificates).
   --no-start    Install/enable the service but do not start it now.
   -y, --yes     Do not ask for confirmation.
   -n, --dry-run Show what would be done without changing anything.
@@ -126,7 +126,7 @@ step "config      : ${CONF_FILE}$( [ -f "$CONF_FILE" ] && echo '  (exists, kept)
 step "data        : ${DATA_DIR}"
 step "service     : ${UNIT_PATH}"
 step "cli symlinks: ${BIN_DIR}/pktnet_bot, ${BIN_DIR}/pktnet_cert"
-step "deps        : $( [ "$INSTALL_DEPS" -eq 1 ] && echo 'python3-reportlab' || echo 'skipped' )"
+step "deps        : $( [ "$INSTALL_DEPS" -eq 1 ] && echo 'python3-pil' || echo 'skipped' )"
 [ "$DRY_RUN" -eq 1 ] && warn "DRY-RUN: nothing will actually change."
 echo
 
@@ -155,10 +155,11 @@ else
   for f in pktnet_bot.py pktnet_cert.py; do
     run install -m 0755 "${SRC_DIR}/${f}" "${INSTALL_DIR}/${f}"
   done
-  if [ -f "${SRC_DIR}/pktnet_radio.png" ]; then
-    run install -m 0644 "${SRC_DIR}/pktnet_radio.png" "${INSTALL_DIR}/pktnet_radio.png"
+  if [ -d "${SRC_DIR}/fonts" ]; then
+    run mkdir -p "${INSTALL_DIR}/fonts"
+    run cp -f "${SRC_DIR}"/fonts/*.ttf "${INSTALL_DIR}/fonts/" 2>/dev/null || true
   else
-    warn "pktnet_radio.png not found; certificates will render without the background"
+    warn "fonts/ not found; certificate text may fall back to a default font"
   fi
 fi
 # Normalise permissions. The service and the CLI wrappers run the scripts via
@@ -193,7 +194,7 @@ run mkdir -p "${DATA_DIR}"
 CERT_DIR="${DATA_DIR}/certs"
 run mkdir -p "${CERT_DIR}"
 if [ -d "${SRC_DIR}/certs" ]; then
-  for f in users_base.csv create_user_db.php update_db.sh pktnet_radio.png; do
+  for f in users_base.csv create_user_db.php update_db.sh pktnet_template.png; do
     if [ -f "${SRC_DIR}/certs/${f}" ]; then
       run install -m 0644 "${SRC_DIR}/certs/${f}" "${CERT_DIR}/${f}"
     fi
@@ -206,7 +207,7 @@ run chown -R "${SVC_USER}":"${SVC_USER}" "${DATA_DIR}"
 info "Writing systemd unit ${UNIT_PATH}"
 write_file "${UNIT_PATH}" <<EOF
 [Unit]
-Description=APRS Net check-in bot
+Description=PKTNET APRS Net check-in bot
 Documentation=https://github.com/PP5PK/APRS_NET
 After=network-online.target
 Wants=network-online.target
@@ -218,6 +219,7 @@ Group=${SVC_USER}
 ExecStart=/usr/bin/python3 ${INSTALL_DIR}/pktnet_bot.py run --config ${CONF_FILE}
 Restart=on-failure
 RestartSec=10
+
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
@@ -244,11 +246,11 @@ done
 # --- 7) dependencies ------------------------------------------------------- #
 if [ "$INSTALL_DEPS" -eq 1 ]; then
   if command -v apt-get >/dev/null 2>&1; then
-    info "Installing dependencies (reportlab, php, sqlite3, pv)"
-    run apt-get install -y python3-reportlab php-cli php-sqlite3 sqlite3 pv wget \
+    info "Installing dependencies (Pillow, php, sqlite3, pv)"
+    run apt-get install -y python3-pil php-cli php-sqlite3 sqlite3 pv wget \
       || warn "some dependencies failed to install"
   else
-    warn "apt-get not found; install python3-reportlab, php-cli, php-sqlite3, sqlite3 and pv manually"
+    warn "apt-get not found; install python3-pil, php-cli, php-sqlite3, sqlite3 and pv manually"
   fi
 fi
 

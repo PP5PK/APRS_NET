@@ -15,7 +15,7 @@ event name, date and check-in time.
 
 It is designed to run on a Raspberry Pi, alongside an existing Direwolf
 digipeater/igate. The core bot uses only the Python standard library; the
-optional certificate feature adds `reportlab`, and optional email delivery uses
+optional certificate feature adds `Pillow`, and optional email delivery uses
 a standard SMTP provider.
 
 ---
@@ -63,9 +63,9 @@ a standard SMTP provider.
   certificate over APRS, resolving the operator's name from a local database
   with an on-air confirm/correct step, and can **email** the PDF via SMTP.
 - **Certificate generator**: also a command-line tool for rendering an event's
-  certificates in bulk, colourblind-safe blue/amber palette.
+  certificates in bulk onto the same template.
 - Lightweight: the core bot needs only the Python standard library. The optional
-  certificate feature adds `reportlab`; optional email uses an SMTP provider.
+  certificate feature adds `Pillow`; optional email uses an SMTP provider.
 
 ---
 
@@ -110,7 +110,8 @@ sequenceDiagram
 |------|---------|
 | `pktnet_bot.py` | APRS-IS daemon: check-ins, ACKs, logging, replies, remote commands, room and the interactive certificate/email flow. Also provides the event/check-in management subcommands. |
 | `pktnet_cert.py` | Command-line certificate generator: reads the database and renders one PDF per operator. |
-| `certs/` | Certificate source data and tools: `users_base.csv` (name database source), `user_manager.sh` (interactive CSV editor), `create_user_db.php` + `update_db.sh` (build/refresh `users.db`), `pktnet_radio.png` (background image) and a sample certificate. |
+| `fonts/` | TrueType fonts used to draw the certificate (Orbitron, Playfair Display Italic, Montserrat). |
+| `certs/` | Certificate source data and tools: `users_base.csv` (name database source), `user_manager.sh` (interactive CSV editor), `create_user_db.php` + `update_db.sh` (build/refresh `users.db`), `pktnet_template.png` (the certificate background design) and a sample certificate. |
 | `pktnet.conf.example` | Configuration template (copy to `/etc/pktnet/pktnet.conf`). |
 | `pktnet.service` | Reference systemd unit (the installer generates its own with the right paths). |
 | `install.sh` | Centralised installer (code in `/opt/APRS_NET`, config/data in place, builds `users.db`). |
@@ -123,22 +124,18 @@ sequenceDiagram
 ## Requirements
 
 - **Python 3.9+** (the core bot is standard-library only; the certificate
-  feature needs `reportlab`, installed automatically by `install.sh`).
+  feature needs `Pillow`, installed automatically by `install.sh`).
 - An **amateur radio licence**, a callsign, and an **APRS-IS passcode**
   (the passcode is derived from your base callsign, so it is the same with or
   without an SSID). You can generate one with any APRS-IS passcode tool, e.g.
   <https://aprs.dvbr.net>.
-- **`reportlab`** for the certificate generator only. On Raspberry Pi OS /
-  Debian, install it from apt to avoid the pip *externally-managed-environment*
-  restriction:
+- **`Pillow`** for the certificate generator only (it composites the
+  operator's data onto the template image). On Raspberry Pi OS / Debian install
+  it from apt to avoid the pip *externally-managed-environment* restriction:
 
   ```bash
-  sudo apt install python3-reportlab
+  sudo apt install python3-pil
   ```
-
-  The faint background radio image needs Pillow, which `python3-reportlab`
-  normally pulls in. If the image is skipped, install it explicitly with
-  `sudo apt install python3-pil`.
 
 ---
 
@@ -149,7 +146,7 @@ sequenceDiagram
 `install.sh` places everything in its proper place: code in `/opt/APRS_NET`,
 configuration in `/etc/pktnet`, data in `/var/lib/pktnet`, a systemd unit
 generated with the correct paths, and `pktnet_bot` / `pktnet_cert` CLI wrappers
-in `/usr/local/bin`. It also installs the dependencies (`python3-reportlab`,
+in `/usr/local/bin`. It also installs the dependencies (`python3-pil`,
 `php-cli`, `php-sqlite3`, `sqlite3`, `pv`) and builds the operator-name database
 `users.db` from `certs/users_base.csv`. It is safe to re-run to upgrade — config
 and data are preserved.
@@ -202,10 +199,10 @@ sudo chown root:pktnet /etc/pktnet/pktnet.conf
 sudo chmod 0640 /etc/pktnet/pktnet.conf
 sudo nano /etc/pktnet/pktnet.conf         # fill in your personal data
 
-sudo apt install python3-reportlab php-cli php-sqlite3 sqlite3 pv   # deps
+sudo apt install python3-pil php-cli php-sqlite3 sqlite3 pv   # deps
 # Build the operator-name database from the CSV (needed for the cert flow):
 sudo mkdir -p /var/lib/pktnet/certs
-sudo cp /opt/APRS_NET/certs/{users_base.csv,create_user_db.php,pktnet_radio.png} /var/lib/pktnet/certs/
+sudo cp /opt/APRS_NET/certs/{users_base.csv,create_user_db.php,pktnet_template.png} /var/lib/pktnet/certs/
 sudo php /var/lib/pktnet/certs/create_user_db.php
 sudo chown -R pktnet:pktnet /var/lib/pktnet
 
@@ -287,14 +284,13 @@ contains your passcode.
 | `net` | `paused_text` | `PKTNET under maintenance...` | Reply sent to check-ins while the net is paused. |
 | `room` | `room_call` | *(empty)* | Group-chat room callsign (e.g. `PKTQSO`). Empty disables the room. |
 | `room` | `timeout_min` | `1440` | Drop room members idle for this many minutes. |
-| `room` | `max_members` | `60` | Maximum members in the room. |
+| `room` | `max_members` | `30` | Maximum members in the room. |
 | `room` | `min_interval` | `10` | Minimum seconds between a member's relayed messages. |
 | `cert` | `enable` | `false` | Turn the interactive certificate flow on or off. |
 | `cert` | `dir` | `/var/lib/pktnet/certs` | Folder for generated PDFs, `users.db` and the CSV. |
 | `cert` | `users_db` | `.../certs/users.db` | Read-only name database `users(callsign, name, city_state)`. |
-| `cert` | `radio` | `.../certs/pktnet_radio.png` | Optional certificate background image. |
-| `cert` | `Certificate` | `.../certs/certs/Example_certificate.pdf` | Sample of certificate. |
-| `cert` | `org` / `site` | `PP5PK` / `pp5pk.net` | Issuer text on the certificate. |
+| `cert` | `Certificate` | `.../certs/certs/Sample_Certificate.pdf` | Sample of certificate. |
+| `cert` | `template` | `.../certs/pktnet_template.png` | Certificate background design the data is drawn onto. |
 | `cert` | `flow_timeout_min` | `15` | Drop an unfinished certificate conversation after N minutes. |
 | `email` | `enable` | `false` | Email the generated PDF over SMTP (needs the keys below). |
 | `email` | `host` / `port` | `smtp-relay.brevo.com` / `587` | SMTP server and STARTTLS port. |
@@ -437,7 +433,7 @@ typing on the radio. An unanswered conversation is dropped after
 `flow_timeout_min` minutes. The bot can also email the PDF — see
 [Emailing certificates](#emailing-certificates) below.
 
-Put `users.db` (and, if you use it, the background `pktnet_radio.png`) in the
+Put `users.db` and the `pktnet_template.png` template in the
 `[cert] dir` folder — by default `/var/lib/pktnet/certs/`. The name database is
 built from `certs/users_base.csv`; to add or correct operators, edit the CSV
 with `certs/user_manager.sh` (an interactive editor) and rebuild `users.db` from
@@ -517,14 +513,14 @@ pktnet_cert.py -c /etc/pktnet/pktnet.conf --callsign PP5ABC-7
 | `--callsign` | Generate for a single operator only. |
 | `--names` | Optional CSV `callsign,name` to print operator names. |
 | `--out` | Output directory (default `./certs`). |
-| `--org` | Issuer / organiser (default `PP5PK`). |
-| `--site` | Issuer website (default `pp5pk.net`). |
-| `--radio` | Background radio image. Defaults to `pktnet_radio.png` next to the script; pass `--radio ''` to disable. |
+| `--template` | Certificate template image (default: from config, else `/var/lib/pktnet/certs/pktnet_template.png`). |
 
-Certificates are A4 landscape, use a colourblind-safe blue/amber palette
-(Brazilian-flag inspired), and show the event name, date (DD/MM/YYYY) and the
-operator's check-in time in UTC. If `pktnet_radio.png` is present next to the
-generator, it is drawn faintly in the background as a design accent.
+Certificates are built by drawing the callsign (base call only, no SSID), the
+operator name, the event name, the date (DD/MM/YYYY) and the check-in time (UTC)
+onto the template with Pillow. The fonts live in `fonts/` next to the code
+(Orbitron for the callsign, an italic serif for the name, a clean sans for the
+rest); text auto-shrinks to fit, so long callsigns and names stay inside their
+areas.
 
 ---
 

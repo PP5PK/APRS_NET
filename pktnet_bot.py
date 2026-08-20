@@ -240,10 +240,9 @@ def load_config(path):
                                  fallback="/var/lib/pktnet/certs/users.db"),
         "cert_flow_timeout_min": cfg.getint("cert", "flow_timeout_min",
                                             fallback=10),
-        "cert_org": cfg.get("cert", "org", fallback="PP5PK"),
-        "cert_site": cfg.get("cert", "site", fallback="pp5pk.net"),
-        "cert_radio": cfg.get("cert", "radio",
-                              fallback="/var/lib/pktnet/certs/pktnet_radio.png"),
+        "cert_template": cfg.get("cert", "template",
+                                 fallback="/var/lib/pktnet/certs/"
+                                          "pktnet_template.png"),
 
         # Email delivery of certificates (SMTP, e.g. Brevo). Off by default.
         "email_enable": cfg.getboolean("email", "enable", fallback=False),
@@ -1272,8 +1271,8 @@ class PktNetBot:
         """
         try:
             from pktnet_cert import (draw_certificate, fmt_date_br,
-                                     fmt_time_utc, safe_filename, _load_image)
-        except Exception as exc:  # reportlab or module missing
+                                     fmt_time_utc, safe_filename)
+        except Exception as exc:  # Pillow or module missing
             LOG.warning("Certificate module unavailable: %s", exc)
             return None
         conn = self.conn
@@ -1286,16 +1285,13 @@ class PktNetBot:
             (event_id, source)).fetchone()
         ts = row["ts_utc"] if row else datetime.now(timezone.utc).isoformat()
         ctx = {
+            "template": self.cfg["cert_template"],
             "net_call": event["net_call"],
             "event_name": event["name"],
             "date_br": fmt_date_br(event["event_date"]),
-            "year": (event["event_date"] or "")[:4],
             "callsign": callsign,
             "op_name": name,
             "checkin_time": fmt_time_utc(ts),
-            "org": self.cfg["cert_org"],
-            "site": self.cfg["cert_site"],
-            "radio": _load_image(self.cfg["cert_radio"]),
         }
         try:
             os.makedirs(self.cfg["cert_dir"], exist_ok=True)
