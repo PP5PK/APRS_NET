@@ -1030,7 +1030,7 @@ class PktNetBot:
                 return
             date_str = now.strftime("%Y-%m-%d")
             end = now.replace(hour=23, minute=59, second=59, microsecond=0)
-            name = arg[:40].strip() if arg else "PKTNET Net " + date_str
+            name = arg[:40].strip() if arg else "APRS PKTNET " + date_str
             create_daily_net(conn, name, date_str, now_iso, end.isoformat(),
                              self.cfg["net_call"])
             LOG.info("Net started by %s: %s", source, name)
@@ -1560,7 +1560,7 @@ def main():
 
     p_add = sub.add_parser("addevent", parents=[common],
                            help="register a net event window (UTC)")
-    p_add.add_argument("name", help="event name, e.g. 'PKTNET Net #1'")
+    p_add.add_argument("name", help="event name, e.g. 'APRS PKTNET #1'")
     p_add.add_argument("start", help="start time, ISO 8601 UTC (e.g. 2026-06-25T00:00:00Z)")
     p_add.add_argument("end", help="end time, ISO 8601 UTC (e.g. 2026-06-25T23:59:59Z)")
 
