@@ -38,7 +38,7 @@ paused_text  = PKTNET under maintenance, try again in a few minutes.
 # (matched by base call, SSID ignored). Leave empty to disable admin commands.
 #   Public (anyone): STATUS, LAST, TIME, ME, RESEND, HELP
 #   Admin  (below):  USERS, START, STOP, PAUSE, RESTART
-admin_calls = PP5MFA
+admin_calls = PP5MFA PP5PK
 
 [room]
 # Optional group-chat room. Users send a message to this callsign; anything a
@@ -50,7 +50,7 @@ timeout_min = 1440
 # Maximum members in the room.
 max_members = 50
 # Minimum seconds between a member's relayed messages (flood guard).
-min_interval = 5
+min_interval = 10
 
 [messaging]
 max_retries = 3
