@@ -286,13 +286,14 @@ contains your passcode.
 | `net` | `admin_calls` | *(empty)* | Callsigns allowed to send admin remote-control commands (matched by base call, SSID ignored). Empty disables admin commands. |
 | `net` | `paused_text` | `PKTNET under maintenance...` | Reply sent to check-ins while the net is paused. |
 | `room` | `room_call` | *(empty)* | Group-chat room callsign (e.g. `PKTQSO`). Empty disables the room. |
-| `room` | `timeout_min` | `60` | Drop room members idle for this many minutes. |
-| `room` | `max_members` | `30` | Maximum members in the room. |
-| `room` | `min_interval` | `3` | Minimum seconds between a member's relayed messages. |
+| `room` | `timeout_min` | `1440` | Drop room members idle for this many minutes. |
+| `room` | `max_members` | `50` | Maximum members in the room. |
+| `room` | `min_interval` | `10` | Minimum seconds between a member's relayed messages. |
 | `cert` | `enable` | `false` | Turn the interactive certificate flow on or off. |
 | `cert` | `dir` | `/var/lib/pktnet/certs` | Folder for generated PDFs, `users.db` and the CSV. |
 | `cert` | `users_db` | `.../certs/users.db` | Read-only name database `users(callsign, name, city_state)`. |
 | `cert` | `radio` | `.../certs/pktnet_radio.png` | Optional certificate background image. |
+| `cert` | `Certificate` | `.../certs/certs/Example_certificate.pdf` | Sample of certificate.. |
 | `cert` | `org` / `site` | `PP5PK` / `pp5pk.net` | Issuer text on the certificate. |
 | `cert` | `flow_timeout_min` | `10` | Drop an unfinished certificate conversation after N minutes. |
 | `email` | `enable` | `false` | Email the generated PDF over SMTP (needs the keys below). |
@@ -451,6 +452,46 @@ The send runs in the background so it never stalls the APRS loop, and the body
 carries a short notice that the address is used only to deliver the certificate.
 Because the config holds the SMTP key, keep `pktnet.conf` out of git (it already
 is, via `.gitignore`).
+
+##### Setting up Brevo (domain authentication and credentials)
+
+Email needs a sending account and an **authenticated domain** so the messages
+pass SPF/DKIM and are not treated as spam. Using [Brevo](https://www.brevo.com)
+(free tier) as the example — other SMTP providers follow the same shape:
+
+1. **Add and authenticate your domain.** In the Brevo panel, under *Senders,
+   Domains & Dedicated IPs → Domains*, add your domain (e.g. `pp5pk.net`). Brevo
+   shows the DNS records to prove ownership and sign your mail — typically a
+   **DKIM** record and a Brevo verification/**DMARC** record, plus **SPF**
+   guidance.
+2. **Add those records at your DNS host** (your registrar's DNS panel — for this
+   project, Dynadot). Copy each record exactly as Brevo shows it. One trap: if
+   you already have an **SPF** record (a `TXT` starting with `v=spf1`), do **not**
+   add a second one — edit the existing record to include Brevo's include (the
+   value Brevo displays, e.g. `include:spf.brevo.com`). Two SPF records break
+   authentication.
+3. **Verify.** Back in Brevo, trigger verification. DNS propagation can take
+   minutes to a few hours; once the domain shows as authenticated (DKIM/SPF
+   green), you are ready.
+4. **Get the SMTP credentials.** Under *SMTP & API → SMTP*, note the server
+   (`smtp-relay.brevo.com`), port (`587`), your SMTP **login**, and generate an
+   **SMTP key** (this is a dedicated key, not your account password). Put these
+   in the `[email]` section as `host`, `port`, `user` and `password`.
+5. **Authorize the sending IP.** Brevo blocks sends from unknown IPs with
+   `525 5.7.1 Unauthorized IP address`. Under *Security → Authorized IPs*, add
+   the **public IP** of the machine running the bot. Find it on the Pi with:
+
+   ```bash
+   curl -s https://api.ipify.org; echo
+   ```
+
+   (If your public IP is dynamic, re-authorize it when it changes, or disable the
+   IP check if your account allows it.)
+6. **Set the sender.** `from` must be an address on the authenticated domain
+   (any mailbox on it works, e.g. `certs@pp5pk.net`). `reply_to` may be **any**
+   address you actually read — even a Gmail — because it does not affect
+   SPF/DKIM. Keep the real login and key only in `/etc/pktnet/pktnet.conf`, never
+   in the committed example.
 
 #### Command-line generator
 
