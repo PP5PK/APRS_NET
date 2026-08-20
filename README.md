@@ -14,8 +14,9 @@ logged check-ins into one participation certificate per operator, showing the
 event name, date and check-in time.
 
 It is designed to run on a Raspberry Pi, alongside an existing Direwolf
-digipeater/igate, and uses only the Python standard library for the bot itself
-(the certificate generator adds `reportlab`).
+digipeater/igate. The core bot uses only the Python standard library; the
+optional certificate feature adds `reportlab`, and optional email delivery uses
+a standard SMTP provider.
 
 ---
 
@@ -53,9 +54,18 @@ digipeater/igate, and uses only the Python standard library for the bot itself
   the bot can run always-on with an auto-created daily event.
 - **Reliable messaging**: outgoing replies carry a line number and are
   retransmitted until acknowledged, with automatic reconnection and keepalive.
-- **Certificate generator**: one PDF per operator, colourblind-safe blue/amber
-  palette, optional operator names from a CSV.
-- **Standard library only** for the bot. No external services, no cloud.
+- **Remote control over APRS**: public queries (`STATUS`, `LAST`, `TIME`, `ME`,
+  `HELP`) and admin commands (`START`, `STOP`, `PAUSE`, `RESTART`, `USERS`) sent
+  as APRS messages to the net callsign.
+- **Group-chat room** (optional): a second callsign that relays each member's
+  message to the others, with join/leave/who, flood guard and idle pruning.
+- **Interactive certificates** (optional): after a check-in the bot offers a PDF
+  certificate over APRS, resolving the operator's name from a local database
+  with an on-air confirm/correct step, and can **email** the PDF via SMTP.
+- **Certificate generator**: also a command-line tool for rendering an event's
+  certificates in bulk, colourblind-safe blue/amber palette.
+- Lightweight: the core bot needs only the Python standard library. The optional
+  certificate feature adds `reportlab`; optional email uses an SMTP provider.
 
 ---
 
@@ -98,19 +108,22 @@ sequenceDiagram
 
 | File | Purpose |
 |------|---------|
-| `pktnet_bot.py` | APRS-IS daemon: receives check-ins, ACKs, logs, replies. Also provides event/check-in management subcommands. |
-| `pktnet_cert.py` | Certificate generator: reads the database and produces one PDF per operator. |
-| `pktnet_radio.png` | Optional stylised radio image drawn faintly in the certificate background. |
+| `pktnet_bot.py` | APRS-IS daemon: check-ins, ACKs, logging, replies, remote commands, room and the interactive certificate/email flow. Also provides the event/check-in management subcommands. |
+| `pktnet_cert.py` | Command-line certificate generator: reads the database and renders one PDF per operator. |
+| `certs/` | Certificate source data and tools: `users_base.csv` (name database source), `user_manager.sh` (interactive CSV editor), `create_user_db.php` + `update_db.sh` (build/refresh `users.db`), `pktnet_radio.png` (background image) and a sample certificate. |
 | `pktnet.conf.example` | Configuration template (copy to `/etc/pktnet/pktnet.conf`). |
-| `pktnet.service` | systemd unit for the daemon. |
-| `install.sh` | Centralised installer (code in `/opt/APRS_NET`, config/data in place). |
+| `pktnet.service` | Reference systemd unit (the installer generates its own with the right paths). |
+| `install.sh` | Centralised installer (code in `/opt/APRS_NET`, config/data in place, builds `users.db`). |
 | `uninstall.sh` | Removes the service and code (keeps config/data unless `--purge`). |
+| `.gitignore` | Keeps `pktnet.conf` (your passcode/SMTP key) and Python cruft out of git. |
+| `LICENSE` | MIT licence. |
 
 ---
 
 ## Requirements
 
-- **Python 3.9+** (standard library only for the bot).
+- **Python 3.9+** (the core bot is standard-library only; the certificate
+  feature needs `reportlab`, installed automatically by `install.sh`).
 - An **amateur radio licence**, a callsign, and an **APRS-IS passcode**
   (the passcode is derived from your base callsign, so it is the same with or
   without an SSID). You can generate one with any APRS-IS passcode tool, e.g.
@@ -189,8 +202,17 @@ sudo chown root:pktnet /etc/pktnet/pktnet.conf
 sudo chmod 0640 /etc/pktnet/pktnet.conf
 sudo nano /etc/pktnet/pktnet.conf         # fill in your personal data
 
-sudo apt install python3-reportlab        # for certificates
-sudo ln -sf /opt/APRS_NET/pktnet_cert.py /usr/local/bin/pktnet_cert
+sudo apt install python3-reportlab php-cli php-sqlite3 sqlite3 pv   # deps
+# Build the operator-name database from the CSV (needed for the cert flow):
+sudo mkdir -p /var/lib/pktnet/certs
+sudo cp /opt/APRS_NET/certs/{users_base.csv,create_user_db.php,pktnet_radio.png} /var/lib/pktnet/certs/
+sudo php /var/lib/pktnet/certs/create_user_db.php
+sudo chown -R pktnet:pktnet /var/lib/pktnet
+
+# CLI wrappers that call python3 (so the .py never need the execute bit):
+printf '#!/bin/sh\nexec /usr/bin/python3 /opt/APRS_NET/pktnet_bot.py "$@"\n'  | sudo tee /usr/local/bin/pktnet_bot  >/dev/null
+printf '#!/bin/sh\nexec /usr/bin/python3 /opt/APRS_NET/pktnet_cert.py "$@"\n' | sudo tee /usr/local/bin/pktnet_cert >/dev/null
+sudo chmod 0755 /usr/local/bin/pktnet_bot /usr/local/bin/pktnet_cert
 
 # systemd unit pointing at the /opt/APRS_NET code
 sudo tee /etc/systemd/system/pktnet.service >/dev/null <<'UNIT'
@@ -256,9 +278,11 @@ contains your passcode.
 | `aprsis` | `passcode` | — | Your APRS-IS passcode. |
 | `aprsis` | `net_call` | — | The special net callsign operators address (e.g. `PKTNET`). Max 9 characters; must not collide with a real callsign or existing service. |
 | `net` | `require_active_event` | `true` | When `true`, check-ins only count inside a registered event window. When `false`, the bot auto-creates a daily event and always logs. |
+| `net` | `checkin_keyword` | `CHECK` | First word a message must start with to count as a check-in. |
+| `net` | `checkin_hint` | `Send CHECK to join the net. 73 de PP5PK` | Reply to non-check messages. Empty = stay silent. |
 | `net` | `confirm_text` | `Check-in OK {time}z. 73 de PP5PK` | Reply for a new check-in. |
-| `net` | `dup_text` | `Ja registrado {time}z. 73 de PP5PK` | Reply when the operator already checked in. |
-| `net` | `closed_text` | `PKTNET fora do horario. 73 de PP5PK` | Reply when no event is active (only in `require_active_event = true` mode). |
+| `net` | `dup_text` | `Already registered {time}z. 73 de PP5PK` | Reply when the operator already checked in. |
+| `net` | `closed_text` | `PKTNET not active. 73 de PP5PK` | Reply when no event is active (only in `require_active_event = true` mode). |
 | `net` | `admin_calls` | *(empty)* | Callsigns allowed to send admin remote-control commands (matched by base call, SSID ignored). Empty disables admin commands. |
 | `net` | `paused_text` | `PKTNET under maintenance...` | Reply sent to check-ins while the net is paused. |
 | `room` | `room_call` | *(empty)* | Group-chat room callsign (e.g. `PKTQSO`). Empty disables the room. |
@@ -271,6 +295,12 @@ contains your passcode.
 | `cert` | `radio` | `.../certs/pktnet_radio.png` | Optional certificate background image. |
 | `cert` | `org` / `site` | `PP5PK` / `pp5pk.net` | Issuer text on the certificate. |
 | `cert` | `flow_timeout_min` | `10` | Drop an unfinished certificate conversation after N minutes. |
+| `email` | `enable` | `false` | Email the generated PDF over SMTP (needs the keys below). |
+| `email` | `host` / `port` | `smtp-relay.brevo.com` / `587` | SMTP server and STARTTLS port. |
+| `email` | `user` / `password` | — | SMTP login and the provider's SMTP key (keep out of git). |
+| `email` | `from` / `from_name` | — | Sender address (on an SPF/DKIM-authenticated domain) and display name. |
+| `email` | `reply_to` | *(empty)* | Optional Reply-To (any address). Empty replies to `from`. |
+| `email` | `subject` | `Your PKTNET participation certificate` | Email subject line. |
 | `messaging` | `max_retries` | `3` | Times to retransmit an unacknowledged reply. |
 | `messaging` | `retry_interval` | `30` | Seconds between retransmissions. |
 | `messaging` | `keepalive_interval` | `20` | Seconds between keepalive comments. |
@@ -400,11 +430,15 @@ and the callsign is shown in upper case without its SSID. The email and chosen
 name are remembered per operator, so on later nets the bot just asks
 "Use previous info? YES / NO / new email" and shows the stored values, saving
 typing on the radio. An unanswered conversation is dropped after
-`flow_timeout_min` minutes. (Emailing the PDF is a later phase; for now the
-bot renders and stores it, and remembers the address.)
+`flow_timeout_min` minutes. The bot can also email the PDF — see
+[Emailing certificates](#emailing-certificates) below.
 
 Put `users.db` (and, if you use it, the background `pktnet_radio.png`) in the
-`[cert] dir` folder — by default `/var/lib/pktnet/certs/`.
+`[cert] dir` folder — by default `/var/lib/pktnet/certs/`. The name database is
+built from `certs/users_base.csv`; to add or correct operators, edit the CSV
+with `certs/user_manager.sh` (an interactive editor) and rebuild `users.db` from
+its *Create / Update SQL database* option — or run `create_user_db.php`
+directly. `certs/update_db.sh` refreshes the base from radioid.net.
 
 #### Emailing certificates
 
