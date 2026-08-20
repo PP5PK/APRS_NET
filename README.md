@@ -354,7 +354,9 @@ or change a window **while the daemon is running** — no restart needed.
 
 Send an APRS message to the net callsign to query or control the net. Commands
 are case-insensitive and optional `[brackets]` are allowed (e.g. `[STATUS]`).
-Any unrecognised text is treated as a normal check-in.
+Any unrecognised text is treated as a normal check-in. When a reply is too long
+for one APRS message it is split into several, each prefixed `[i/n]: ` so the
+operator can see the order and notice if a part went missing.
 
 **Public** — anyone can send these:
 

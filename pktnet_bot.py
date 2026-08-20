@@ -56,6 +56,8 @@ from email.utils import formataddr
 
 DEFAULT_CONFIG_PATH = "/etc/pktnet/pktnet.conf"
 APRS_MAX_TEXT = 67           # APRS message text hard limit (characters)
+# Chars reserved for a "[i/n]: " part prefix when a reply spans several messages.
+PART_RESERVE = 8
 SOFTWARE_NAME = "PKTNET"
 SOFTWARE_VERS = "1.0"
 
@@ -866,8 +868,8 @@ class PktNetBot:
                 self._enqueue_reply(source, "{} is empty.".format(room),
                                     from_call=room)
             else:
-                for line in self._pack(members, prefix="In {}: ".format(room)):
-                    self._enqueue_reply(source, line, from_call=room)
+                self._enqueue_pack(source, members,
+                                   prefix="In {}: ".format(room), from_call=room)
             return
 
         if raction == "help":
@@ -930,8 +932,7 @@ class PktNetBot:
             if not self.cfg["cert_enable"]:
                 cmds = [c for c in cmds if c != "RESEND"]
             cmds += (HELP_ADMIN if is_admin else [])
-            for line in self._pack(cmds, sep=", "):
-                self._enqueue_reply(source, line)
+            self._enqueue_pack(source, cmds, sep=", ")
             return
 
         if action == "resend":
@@ -983,9 +984,8 @@ class PktNetBot:
                 self._enqueue_reply(source, "{}: no check-ins yet".format(
                     event["name"]))
                 return
-            for line in self._pack(calls, prefix="{} last: ".format(
-                    event["name"])):
-                self._enqueue_reply(source, line)
+            self._enqueue_pack(source, calls,
+                               prefix="{} last: ".format(event["name"]))
             return
 
         if action == "time":
@@ -1007,8 +1007,7 @@ class PktNetBot:
                     details.append("{} {}z".format(
                         cs, _iso_to_dt(ts).strftime("%H%M")))
             if details:
-                for line in self._pack(details, prefix=head + " "):
-                    self._enqueue_reply(source, line)
+                self._enqueue_pack(source, details, prefix=head + " ")
             else:
                 self._enqueue_reply(source, head + " not checked in now")
             return
@@ -1022,8 +1021,7 @@ class PktNetBot:
             if not calls:
                 self._enqueue_reply(source, "No check-ins yet.")
                 return
-            for line in self._pack(calls):
-                self._enqueue_reply(source, line)
+            self._enqueue_pack(source, calls)
             return
 
         if action == "start":
@@ -1069,14 +1067,14 @@ class PktNetBot:
             return
 
     @staticmethod
-    def _pack(tokens, sep=" ", prefix=""):
+    def _pack(tokens, sep=" ", prefix="", limit=APRS_MAX_TEXT):
         """Pack tokens into messages that fit the APRS text limit; the prefix
         is added once, at the start of the first message."""
         lines, cur, first = [], "", True
         for tok in tokens:
             candidate = (prefix + tok) if (first and not cur) else (
                 tok if not cur else cur + sep + tok)
-            if len(candidate) > APRS_MAX_TEXT and cur:
+            if len(candidate) > limit and cur:
                 lines.append(cur)
                 first = False
                 cur = tok
@@ -1138,15 +1136,16 @@ class PktNetBot:
         if contact and contact["email"]:
             set_cert_flow(conn, source, event_id, "reuse", contact["email"],
                           contact["name"], now_iso)
-            self._enqueue_reply(source, "Use previous info? YES / NO / new email")
             nm = contact["name"] or "?"
             em = contact["email"]
+            lines = ["Use previous info? YES / NO / new email"]
             combined = "Prev: {} / {}".format(nm, em)
-            if len(combined) <= APRS_MAX_TEXT:
-                self._enqueue_reply(source, combined)
+            if len(combined) <= APRS_MAX_TEXT - PART_RESERVE:
+                lines.append(combined)
             else:
-                self._enqueue_reply(source, "Prev name: " + nm)
-                self._enqueue_reply(source, "Prev email: " + em)
+                lines.append("Prev name: " + nm)
+                lines.append("Prev email: " + em)
+            self._enqueue_numbered(source, lines)
         else:
             set_cert_flow(conn, source, event_id, "await_email", None, None,
                           now_iso)
@@ -1347,6 +1346,26 @@ class PktNetBot:
         self.pending[(to_call, msgno)] = {
             "line": line, "attempts": 0, "next": first,
         }
+
+    def _enqueue_numbered(self, to_call, lines, from_call=None):
+        """Enqueue several messages as one reply. When there is more than one,
+        each is prefixed "[i/n]: " so the operator can see the order and spot a
+        missing part. Callers must keep each line within APRS_MAX_TEXT minus
+        PART_RESERVE so the prefix fits."""
+        n = len(lines)
+        for i, line in enumerate(lines, 1):
+            pfx = "[{}/{}]: ".format(i, n) if n > 1 else ""
+            self._enqueue_reply(to_call, pfx + line, from_call)
+
+    def _enqueue_pack(self, to_call, tokens, sep=" ", prefix="", from_call=None):
+        """Pack tokens into as few messages as possible and enqueue them,
+        numbering them "[i/n]: " when the result spans more than one message."""
+        lines = self._pack(tokens, sep, prefix)
+        if len(lines) > 1:
+            # Re-pack leaving room for the part prefix so nothing is truncated.
+            lines = self._pack(tokens, sep, prefix,
+                               limit=APRS_MAX_TEXT - PART_RESERVE)
+        self._enqueue_numbered(to_call, lines, from_call)
 
     def _service_pending(self, now):
         done = []
