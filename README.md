@@ -284,7 +284,7 @@ contains your passcode.
 | `net` | `paused_text` | `PKTNET under maintenance...` | Reply sent to check-ins while the net is paused. |
 | `room` | `room_call` | *(empty)* | Group-chat room callsign (e.g. `PKTQSO`). Empty disables the room. |
 | `room` | `timeout_min` | `1440` | Drop room members idle for this many minutes. |
-| `room` | `max_members` | `30` | Maximum members in the room. |
+| `room` | `max_members` | `60` | Maximum members in the room. |
 | `room` | `min_interval` | `10` | Minimum seconds between a member's relayed messages. |
 | `cert` | `enable` | `false` | Turn the interactive certificate flow on or off. |
 | `cert` | `dir` | `/var/lib/pktnet/certs` | Folder for generated PDFs, `users.db` and the CSV. |
