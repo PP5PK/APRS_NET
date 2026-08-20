@@ -77,7 +77,7 @@ radio = /var/lib/pktnet/certs/pktnet_radio.png
 org = PP5PK
 site = pp5pk.net
 # Abandon an unfinished certificate conversation after this many minutes.
-flow_timeout_min = 10
+flow_timeout_min = 15
 
 [email]
 # Email delivery of certificates over SMTP (e.g. Brevo). Off until enabled.
