@@ -206,7 +206,7 @@ run chown -R "${SVC_USER}":"${SVC_USER}" "${DATA_DIR}"
 info "Writing systemd unit ${UNIT_PATH}"
 write_file "${UNIT_PATH}" <<EOF
 [Unit]
-Description=PKTNET APRS Net check-in bot
+Description=APRS Net check-in bot
 Documentation=https://github.com/PP5PK/APRS_NET
 After=network-online.target
 Wants=network-online.target
@@ -218,7 +218,6 @@ Group=${SVC_USER}
 ExecStart=/usr/bin/python3 ${INSTALL_DIR}/pktnet_bot.py run --config ${CONF_FILE}
 Restart=on-failure
 RestartSec=10
-
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
