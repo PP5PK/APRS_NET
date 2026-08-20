@@ -11,8 +11,6 @@ Group=pktnet
 ExecStart=/usr/bin/python3 /opt/APRS_NET/pktnet_bot.py run --config /etc/pktnet/pktnet.conf
 Restart=on-failure
 RestartSec=10
-
-# Hardening
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
