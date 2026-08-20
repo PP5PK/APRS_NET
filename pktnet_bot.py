@@ -1137,7 +1137,7 @@ class PktNetBot:
                           contact["name"], now_iso)
             nm = contact["name"] or "?"
             em = contact["email"]
-            lines = ["Use previous info? YES / NO / new email"]
+            lines = ["Use previous info? YES / NO"]
             combined = "Prev: {} / {}".format(nm, em)
             if len(combined) <= APRS_MAX_TEXT - PART_RESERVE:
                 lines.append(combined)
@@ -1160,22 +1160,31 @@ class PktNetBot:
         now_iso = datetime.now(timezone.utc).isoformat()
         t = text.strip()
         low = t.lower()
-
-        if low in ("no", "nao", "n", "cancel"):
-            clear_cert_flow(conn, source)
-            self._enqueue_reply(source, "OK, no certificate. 73!")
-            return
-
         state = row["state"]
 
+        # In the reuse step, NO means "don't reuse" -> collect data fresh, the
+        # same as a first-time check-in (the operator can then decline the
+        # certificate at the email question). It does NOT cancel here.
         if state == "reuse":
             if low in ("yes", "sim", "y", "ok"):
                 self._finish_cert(source, row["event_id"], row["email"],
                                   row["name_cand"])
+            elif low in ("no", "nao", "n"):
+                set_cert_flow(conn, source, row["event_id"], "await_email",
+                              None, None, now_iso)
+                self._enqueue_reply(
+                    source, "Want a certificate? Reply your email (only to "
+                    "send it) or NO")
             elif looks_like_email(t):
                 self._after_cert_email(source, row["event_id"], t)
             else:
-                self._enqueue_reply(source, "Reply YES, a new email, or NO")
+                self._enqueue_reply(source, "Reply YES or NO")
+            return
+
+        # In the remaining steps, NO cancels the certificate.
+        if low in ("no", "nao", "n", "cancel"):
+            clear_cert_flow(conn, source)
+            self._enqueue_reply(source, "OK, no certificate. 73!")
             return
 
         if state == "await_email":
