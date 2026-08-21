@@ -330,7 +330,7 @@ pktnet_bot.py run -c /etc/pktnet/pktnet.conf
 
 ```bash
 # Register a net window (times in UTC):
-pktnet_bot.py -c /etc/pktnet/pktnet.conf addevent "PKTNET Net #1" \
+pktnet_bot.py -c /etc/pktnet/pktnet.conf addevent "APRS PKTNET #1" \
     2026-06-25T00:00:00Z 2026-06-25T23:59:59Z
 
 # List events and their check-in counts:
