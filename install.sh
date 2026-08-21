@@ -199,6 +199,12 @@ if [ -d "${SRC_DIR}/certs" ]; then
       run install -m 0644 "${SRC_DIR}/certs/${f}" "${CERT_DIR}/${f}"
     fi
   done
+  # user_manager.sh manages the CSV that builds the operator database - it is a
+  # tool the operator runs, so copy it (executable) alongside the data.
+  if [ -f "${SRC_DIR}/certs/user_manager.sh" ]; then
+    run install -m 0755 "${SRC_DIR}/certs/user_manager.sh" \
+        "${CERT_DIR}/user_manager.sh"
+  fi
 fi
 
 run chown -R "${SVC_USER}":"${SVC_USER}" "${DATA_DIR}"

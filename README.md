@@ -206,7 +206,8 @@ sudo nano /etc/pktnet/pktnet.conf         # fill in your personal data
 sudo apt install python3-pil php-cli php-sqlite3 sqlite3 pv   # deps
 # Build the operator-name database from the CSV (needed for the cert flow):
 sudo mkdir -p /var/lib/pktnet/certs
-sudo cp /opt/APRS_NET/certs/{users_base.csv,create_user_db.php,pktnet_template.png} /var/lib/pktnet/certs/
+sudo cp /opt/APRS_NET/certs/{users_base.csv,create_user_db.php,update_db.sh,user_manager.sh,pktnet_template.png} /var/lib/pktnet/certs/
+sudo chmod +x /var/lib/pktnet/certs/user_manager.sh
 sudo php /var/lib/pktnet/certs/create_user_db.php
 sudo chown -R pktnet:pktnet /var/lib/pktnet
 
