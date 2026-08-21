@@ -140,6 +140,7 @@ LAYOUT = {
     "callsign_size": 120, "name_size": 48, "event_size": 34, "value_size": 24,
 }
 
+
 def _font(name, size):
     return ImageFont.truetype(os.path.join(_FONT_DIR, name), int(size))
 
