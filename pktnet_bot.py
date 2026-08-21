@@ -218,6 +218,11 @@ def load_config(path):
         "checkin_hint": cfg.get("net", "checkin_hint",
                                 fallback="Send CHECK to join the net. 73 de "
                                          "PP5PK"),
+        # Reply when a non-command word arrives from someone who has ALREADY
+        # checked into the active net ({time} = their check-in, UTC).
+        "checked_text": cfg.get("net", "checked_text",
+                                fallback="Check-in completed on {time}. "
+                                         "Send HELP for commands"),
 
         # Group chat room (optional). Empty room_call disables the room.
         "room_call": cfg.get("room", "room_call", fallback="").upper().strip(),
@@ -845,6 +850,14 @@ class PktNetBot:
         keyword = first[0].upper() if first else ""
         if keyword == self.cfg["checkin_keyword"]:
             self._process_checkin(source, text)
+            return
+        checked = self._checkin_time_for(source)
+        if checked:
+            # Already checked into the active net: acknowledge it (with the
+            # check-in time) instead of repeating the "send CHECK" hint.
+            LOG.info("Post-check message from %s: %r", source, text)
+            self._enqueue_reply(source, self.cfg["checked_text"].format(
+                time=checked))
         elif self.cfg["checkin_hint"]:
             LOG.info("Non-check message from %s: %r", source, text)
             self._enqueue_reply(source, self.cfg["checkin_hint"])
@@ -1122,6 +1135,22 @@ class PktNetBot:
         if cur:
             lines.append(cur)
         return lines or [prefix.rstrip()]
+
+    def _checkin_time_for(self, source):
+        """If the operator has already checked into the active net, return
+        their check-in time as 'YYYY/MM/DD-HHMMz'; otherwise None."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        event = get_active_event(self.conn, now_iso)
+        if event is None:
+            return None
+        base = base_call(source)
+        row = self.conn.execute(
+            "SELECT ts_utc FROM checkins WHERE event_id = ? AND "
+            "(callsign = ? OR callsign LIKE ?) ORDER BY ts_utc LIMIT 1",
+            (event["event_id"], base, base + "-%")).fetchone()
+        if row is None:
+            return None
+        return _iso_to_dt(row["ts_utc"]).strftime("%Y/%m/%d-%H%Mz")
 
     def _process_checkin(self, source, text):
         now = datetime.now(timezone.utc)

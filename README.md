@@ -280,7 +280,8 @@ contains your passcode.
 | `aprsis` | `net_call` | — | The special net callsign operators address (e.g. `PKTNET`). Max 9 characters; must not collide with a real callsign or existing service. |
 | `net` | `require_active_event` | `true` | When `true`, check-ins only count inside a registered event window. When `false`, the bot auto-creates a daily event and always logs. |
 | `net` | `checkin_keyword` | `CHECK` | First word a message must start with to count as a check-in. |
-| `net` | `checkin_hint` | `Send CHECK to join the net. 73 de PP5PK` | Reply to non-check messages. Empty = stay silent. |
+| `net` | `checkin_hint` | `Send CHECK to join the net. 73 de PP5PK` | Reply to a non-check message from someone who has **not** checked in yet. Empty = stay silent. |
+| `net` | `checked_text` | `Check-in completed on {time}. Send HELP for commands` | Reply to a non-check message from someone who has **already** checked into the active net (`{time}` = their check-in, `YYYY/MM/DD-HHMMz`). |
 | `net` | `confirm_text` | `Check-in OK {time}z. 73 de PP5PK` | Reply for a new check-in. |
 | `net` | `dup_text` | `Already registered {time}z. 73 de PP5PK` | Reply when the operator already checked in. |
 | `net` | `closed_text` | `PKTNET not active. 73 de PP5PK` | Reply when no event is active (only in `require_active_event = true` mode). |
@@ -354,9 +355,11 @@ or change a window **while the daemon is running** — no restart needed.
 
 Send an APRS message to the net callsign to query or control the net. Commands
 are case-insensitive and optional `[brackets]` are allowed (e.g. `[STATUS]`).
-Any unrecognised text is treated as a normal check-in. When a reply is too long
-for one APRS message it is split into several, each prefixed `[i/n]: ` so the
-operator can see the order and notice if a part went missing.
+A message that is neither a command nor the check-in keyword gets a short hint
+(`checkin_hint`) if the operator hasn't checked in yet, or a confirmation with
+their check-in time (`checked_text`) if they already have. When a reply is too
+long for one APRS message it is split into several, each prefixed `[i/n]: ` so
+the operator can see the order and notice if a part went missing.
 
 **Public** — anyone can send these:
 
