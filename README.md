@@ -13,10 +13,14 @@ replies with a short confirmation. After the net, a companion tool turns the
 logged check-ins into one participation certificate per operator, showing the
 event name, date and check-in time.
 
-It is designed to run on a Raspberry Pi, alongside an existing Direwolf
-digipeater/igate. The core bot uses only the Python standard library; the
-optional certificate feature adds `Pillow`, and optional email delivery uses
-a standard SMTP provider.
+The bot talks to **APRS-IS** over the internet, so it runs standalone on any
+machine with Python and a network connection — it does **not** require Direwolf
+or any RF hardware. It is typically run on a Raspberry Pi alongside an existing
+igate (such as Direwolf), which is optional but recommended: an igate in your
+area is what bridges the net's messages to and from the local RF network, so
+stations on the radio (without internet) can take part too. The core bot uses
+only the Python standard library; the optional certificate feature adds
+`Pillow`, and optional email delivery uses a standard SMTP provider.
 
 ---
 
@@ -289,7 +293,6 @@ contains your passcode.
 | `cert` | `enable` | `false` | Turn the interactive certificate flow on or off. |
 | `cert` | `dir` | `/var/lib/pktnet/certs` | Folder for generated PDFs, `users.db` and the CSV. |
 | `cert` | `users_db` | `.../certs/users.db` | Read-only name database `users(callsign, name, city_state)`. |
-| `cert` | `Certificate` | `.../certs/certs/Sample_Certificate.pdf` | Sample of certificate. |
 | `cert` | `template` | `.../certs/pktnet_template.png` | Certificate background design the data is drawn onto. |
 | `cert` | `flow_timeout_min` | `15` | Drop an unfinished certificate conversation after N minutes. |
 | `email` | `enable` | `false` | Email the generated PDF over SMTP (needs the keys below). |
@@ -327,7 +330,7 @@ pktnet_bot.py run -c /etc/pktnet/pktnet.conf
 
 ```bash
 # Register a net window (times in UTC):
-pktnet_bot.py -c /etc/pktnet/pktnet.conf addevent "APRS PKTNET #1" \
+pktnet_bot.py -c /etc/pktnet/pktnet.conf addevent "PKTNET Net #1" \
     2026-06-25T00:00:00Z 2026-06-25T23:59:59Z
 
 # List events and their check-in counts:
