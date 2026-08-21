@@ -76,6 +76,7 @@ COMMAND_ALIASES = {
     "TIME": "time",
     "ME": "me",
     "RESEND": "resend",
+    "RESET": "reset",
     # admin only
     "USERS": "users",
     "START": "start",
@@ -84,7 +85,7 @@ COMMAND_ALIASES = {
     "RESTART": "restart", "RESUME": "restart",
 }
 
-PUBLIC_ACTIONS = {"help", "status", "last", "time", "me", "resend"}
+PUBLIC_ACTIONS = {"help", "status", "last", "time", "me", "resend", "reset"}
 ADMIN_ACTIONS = {"users", "start", "stop", "pause", "restart"}
 
 # Group-chat room commands (messages addressed to the room callsign).
@@ -96,7 +97,7 @@ ROOM_COMMAND_ALIASES = {
 }
 
 # Command names shown by HELP, per permission group.
-HELP_PUBLIC = ["HELP", "STATUS", "LAST", "TIME", "ME", "RESEND"]
+HELP_PUBLIC = ["HELP", "STATUS", "LAST", "TIME", "ME", "RESEND", "RESET"]
 HELP_ADMIN = ["USERS", "START", "STOP", "PAUSE", "RESTART"]
 
 
@@ -240,6 +241,7 @@ def load_config(path):
                                  fallback="/var/lib/pktnet/certs/users.db"),
         "cert_flow_timeout_min": cfg.getint("cert", "flow_timeout_min",
                                             fallback=10),
+        "cert_resend_min": cfg.getint("cert", "resend_min", fallback=5),
         "cert_template": cfg.get("cert", "template",
                                  fallback="/var/lib/pktnet/certs/"
                                           "pktnet_template.png"),
@@ -318,7 +320,9 @@ def init_db(path):
             state        TEXT NOT NULL,      -- reuse|await_email|confirm_name|await_name
             email        TEXT,
             name_cand    TEXT,
-            updated_utc  TEXT NOT NULL
+            updated_utc  TEXT NOT NULL,      -- last user activity (for expiry)
+            last_msg     TEXT,               -- last prompt we sent (for resend)
+            last_sent_utc TEXT               -- when we last sent to the user
         );
 
         CREATE TABLE IF NOT EXISTS cert_contacts (
@@ -334,6 +338,13 @@ def init_db(path):
     if "status" not in cols:
         conn.execute("ALTER TABLE events ADD COLUMN status TEXT NOT NULL "
                      "DEFAULT 'open'")
+    # Migration: add resend-tracking columns to pre-existing cert_flow tables.
+    fcols = [r[1] for r in
+             conn.execute("PRAGMA table_info(cert_flow)").fetchall()]
+    if fcols and "last_msg" not in fcols:
+        conn.execute("ALTER TABLE cert_flow ADD COLUMN last_msg TEXT")
+    if fcols and "last_sent_utc" not in fcols:
+        conn.execute("ALTER TABLE cert_flow ADD COLUMN last_sent_utc TEXT")
     conn.commit()
     return conn
 
@@ -515,11 +526,27 @@ def lookup_operator_name(users_db_path, base):
 def set_cert_flow(conn, call, event_id, state, email, name_cand, now_iso):
     conn.execute(
         "INSERT INTO cert_flow (callsign, event_id, state, email, name_cand, "
-        "updated_utc) VALUES (?, ?, ?, ?, ?, ?) "
+        "updated_utc, last_sent_utc) VALUES (?, ?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(callsign) DO UPDATE SET event_id=excluded.event_id, "
         "state=excluded.state, email=excluded.email, "
-        "name_cand=excluded.name_cand, updated_utc=excluded.updated_utc",
-        (call, event_id, state, email, name_cand, now_iso))
+        "name_cand=excluded.name_cand, updated_utc=excluded.updated_utc, "
+        "last_sent_utc=excluded.last_sent_utc",
+        (call, event_id, state, email, name_cand, now_iso, now_iso))
+    conn.commit()
+
+
+def set_cert_flow_prompt(conn, call, last_msg, now_iso):
+    """Remember the last prompt sent to the operator and when, so it can be
+    resent if they go quiet (a lost APRS message)."""
+    conn.execute(
+        "UPDATE cert_flow SET last_msg = ?, last_sent_utc = ? "
+        "WHERE callsign = ?", (last_msg, now_iso, call))
+    conn.commit()
+
+
+def touch_cert_flow_sent(conn, call, now_iso):
+    conn.execute("UPDATE cert_flow SET last_sent_utc = ? WHERE callsign = ?",
+                 (now_iso, call))
     conn.commit()
 
 
@@ -632,6 +659,7 @@ class PktNetBot:
         self._tx_gate = 0.0
         self.last_rx = 0.0
         self.last_keepalive = 0.0
+        self._last_flow_check = 0.0
         self._room_last = {}   # in-memory per-sender relay cooldown
 
     # -- lifecycle --------------------------------------------------------- #
@@ -746,6 +774,11 @@ class PktNetBot:
                 self.last_keepalive = now
 
             self._service_pending(now)
+
+            # Resend a lost certificate prompt / expire idle flows (throttled).
+            if now - self._last_flow_check >= 30:
+                self._service_cert_flows(now)
+                self._last_flow_check = now
 
     # -- inbound ----------------------------------------------------------- #
 
@@ -929,9 +962,16 @@ class PktNetBot:
         if action == "help":
             cmds = list(HELP_PUBLIC)
             if not self.cfg["cert_enable"]:
-                cmds = [c for c in cmds if c != "RESEND"]
+                cmds = [c for c in cmds if c not in ("RESEND", "RESET")]
             cmds += (HELP_ADMIN if is_admin else [])
             self._enqueue_pack(source, cmds, sep=", ")
+            return
+
+        if action == "reset":
+            if not self.cfg["cert_enable"]:
+                self._enqueue_reply(source, "Certificates are not available.")
+                return
+            self._reset_cert_flow(source)
             return
 
         if action == "resend":
@@ -1128,6 +1168,59 @@ class PktNetBot:
         prune_cert_flows(self.conn, deadline)
         return get_cert_flow(self.conn, source) is not None
 
+    def _flow_send(self, source, text):
+        """Send a certificate-flow prompt and remember it, so it can be resent
+        if the operator goes quiet (a lost APRS message)."""
+        self._enqueue_reply(source, text)
+        set_cert_flow_prompt(self.conn, source, text,
+                             datetime.now(timezone.utc).isoformat())
+
+    def _reset_cert_flow(self, source):
+        """Restart the certificate data collection from the start (asks the
+        email again). Used by the RESET command and when a flow gets stuck."""
+        conn = self.conn
+        now_iso = datetime.now(timezone.utc).isoformat()
+        event = get_active_event(conn, now_iso)
+        if event is None:
+            clear_cert_flow(conn, source)
+            self._enqueue_reply(source, "No active net right now.")
+            return
+        base = base_call(source)
+        row = conn.execute(
+            "SELECT 1 FROM checkins WHERE event_id = ? AND "
+            "(callsign = ? OR callsign LIKE ?)",
+            (event["event_id"], base, base + "-%")).fetchone()
+        if row is None:
+            clear_cert_flow(conn, source)
+            self._enqueue_reply(source, "Do a check-in first.")
+            return
+        set_cert_flow(conn, source, event["event_id"], "await_email", None,
+                      None, now_iso)
+        self._flow_send(source, "Restarting. Reply your email (only to send "
+                                "it) or NO")
+
+    def _service_cert_flows(self, now):
+        """Resend the last prompt to operators who have gone quiet, and drop
+        flows that have been idle past the timeout."""
+        if not self.cfg["cert_enable"]:
+            return
+        now_dt = datetime.now(timezone.utc)
+        expire_before = (now_dt - timedelta(
+            minutes=self.cfg["cert_flow_timeout_min"])).isoformat()
+        resend_before = (now_dt - timedelta(
+            minutes=self.cfg["cert_resend_min"])).isoformat()
+        prune_cert_flows(self.conn, expire_before)
+        rows = self.conn.execute(
+            "SELECT callsign, last_msg FROM cert_flow WHERE last_msg IS NOT NULL"
+            " AND last_sent_utc IS NOT NULL AND last_sent_utc < ? "
+            "AND updated_utc >= ?", (resend_before, expire_before)).fetchall()
+        for r in rows:
+            LOG.info("Resending certificate prompt to %s (no reply)",
+                     r["callsign"])
+            self._enqueue_reply(r["callsign"], r["last_msg"])
+            touch_cert_flow_sent(self.conn, r["callsign"],
+                                 now_dt.isoformat())
+
     def _start_cert_flow(self, source, event_id):
         conn = self.conn
         now_iso = datetime.now(timezone.utc).isoformat()
@@ -1145,10 +1238,12 @@ class PktNetBot:
                 lines.append("Prev name: " + nm)
                 lines.append("Prev email: " + em)
             self._enqueue_numbered(source, lines)
+            set_cert_flow_prompt(conn, source, "Use previous info? YES / NO",
+                                 now_iso)
         else:
             set_cert_flow(conn, source, event_id, "await_email", None, None,
                           now_iso)
-            self._enqueue_reply(
+            self._flow_send(
                 source, "Want a certificate? Reply your email (only to send "
                 "it) or NO")
 
@@ -1162,6 +1257,12 @@ class PktNetBot:
         low = t.lower()
         state = row["state"]
 
+        # RESET restarts the whole data collection (useful if a message was
+        # lost and the flow got stuck waiting).
+        if low == "reset":
+            self._reset_cert_flow(source)
+            return
+
         # In the reuse step, NO means "don't reuse" -> collect data fresh, the
         # same as a first-time check-in (the operator can then decline the
         # certificate at the email question). It does NOT cancel here.
@@ -1172,13 +1273,13 @@ class PktNetBot:
             elif low in ("no", "nao", "n"):
                 set_cert_flow(conn, source, row["event_id"], "await_email",
                               None, None, now_iso)
-                self._enqueue_reply(
+                self._flow_send(
                     source, "Want a certificate? Reply your email (only to "
                     "send it) or NO")
             elif looks_like_email(t):
                 self._after_cert_email(source, row["event_id"], t)
             else:
-                self._enqueue_reply(source, "Reply YES or NO")
+                self._flow_send(source, "Reply YES or NO")
             return
 
         # In the remaining steps, NO cancels the certificate.
@@ -1191,7 +1292,7 @@ class PktNetBot:
             if looks_like_email(t):
                 self._after_cert_email(source, row["event_id"], t)
             else:
-                self._enqueue_reply(source, "Please reply a valid email or NO")
+                self._flow_send(source, "Please reply a valid email or NO")
             return
 
         if state == "confirm_name":
@@ -1213,13 +1314,13 @@ class PktNetBot:
         if name:
             set_cert_flow(conn, source, event_id, "confirm_name", email, name,
                           now_iso)
-            self._enqueue_reply(
+            self._flow_send(
                 source, "Name: {}. Reply YES to use it, or send the name"
                 .format(name))
         else:
             set_cert_flow(conn, source, event_id, "await_name", email, None,
                           now_iso)
-            self._enqueue_reply(source, "Send the name for the certificate")
+            self._flow_send(source, "Send the name for the certificate")
 
     def _finish_cert(self, source, event_id, email, name):
         conn = self.conn

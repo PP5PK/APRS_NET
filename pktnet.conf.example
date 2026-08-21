@@ -80,6 +80,11 @@ users_db = /var/lib/pktnet/certs/users.db
 template = /var/lib/pktnet/certs/pktnet_template.png
 # Abandon an unfinished certificate conversation after this many minutes.
 flow_timeout_min = 15
+# If the operator goes quiet mid-flow, resend the last prompt after this many
+# minutes (a lost APRS message shouldn't cost them the certificate). The flow
+# still expires after flow_timeout_min. Operators can also send RESET to
+# restart the data collection at any time.
+resend_min = 5
 
 [email]
 # Email delivery of certificates over SMTP (e.g. Brevo). Off until enabled.

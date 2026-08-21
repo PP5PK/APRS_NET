@@ -14,7 +14,7 @@ logged check-ins into one participation certificate per operator, showing the
 event name, date and check-in time.
 
 The bot talks to **APRS-IS** over the internet, so it runs standalone on any
-machine with Python and a network connection — it does **not** require Direwolf
+machine with Python and a network connection - it does **not** require Direwolf
 or any RF hardware. It is typically run on a Raspberry Pi alongside an existing
 igate (such as Direwolf), which is optional but recommended: an igate in your
 area is what bridges the net's messages to and from the local RF network, so
@@ -295,6 +295,7 @@ contains your passcode.
 | `cert` | `users_db` | `.../certs/users.db` | Read-only name database `users(callsign, name, city_state)`. |
 | `cert` | `template` | `.../certs/pktnet_template.png` | Certificate background design the data is drawn onto. |
 | `cert` | `flow_timeout_min` | `15` | Drop an unfinished certificate conversation after N minutes. |
+| `cert` | `resend_min` | `5` | If the operator goes quiet mid-flow, resend the last prompt after N minutes (a lost message shouldn't cost the certificate). |
 | `email` | `enable` | `false` | Email the generated PDF over SMTP (needs the keys below). |
 | `email` | `host` / `port` | `smtp-relay.brevo.com` / `587` | SMTP server and STARTTLS port. |
 | `email` | `user` / `password` | — | SMTP login and the provider's SMTP key (keep out of git). |
@@ -330,7 +331,7 @@ pktnet_bot.py run -c /etc/pktnet/pktnet.conf
 
 ```bash
 # Register a net window (times in UTC):
-pktnet_bot.py -c /etc/pktnet/pktnet.conf addevent "APRS PKTNET #1" \
+pktnet_bot.py -c /etc/pktnet/pktnet.conf addevent "PKTNET Net #1" \
     2026-06-25T00:00:00Z 2026-06-25T23:59:59Z
 
 # List events and their check-in counts:
@@ -366,6 +367,7 @@ operator can see the order and notice if a part went missing.
 | `TIME` | Time remaining in the active net (or that none is running). |
 | `ME` | How many nets your base callsign has joined (all SSIDs counted together), plus your per-SSID check-in times in the active net. |
 | `RESEND` | Re-generate and re-send your certificate for your latest net to the email on file (only when `[cert]` is enabled). |
+| `RESET` | Restart the certificate data collection from the start (asks your email again) - useful if a message was lost and the flow got stuck (only when `[cert]` is enabled). |
 | `HELP` | Lists the commands available to you (admins see the admin ones too). |
 
 **Admin** — only callsigns in `admin_calls` (matched by base call):
@@ -431,9 +433,14 @@ Names are always normalised to Title Case with connective particles in lower
 case (`MARIA DA SILVA` → `Maria da Silva`), even when typed by the operator,
 and the callsign is shown in upper case without its SSID. The email and chosen
 name are remembered per operator, so on later nets the bot just asks
-"Use previous info? YES / NO / new email" and shows the stored values, saving
-typing on the radio. An unanswered conversation is dropped after
-`flow_timeout_min` minutes. The bot can also email the PDF — see
+"Use previous info? YES / NO" and shows the stored values, saving typing on the
+radio (reply `NO` to enter a different email/name, or `YES` to reuse them).
+
+APRS messages sometimes go missing. To keep a lost message from stranding the
+flow, the bot **resends the last prompt** after `resend_min` minutes of silence,
+and the operator can send `RESET` at any time to start the collection over. An
+unanswered conversation is still dropped after `flow_timeout_min` minutes. The
+bot can also email the PDF — see
 [Emailing certificates](#emailing-certificates) below.
 
 Put `users.db` and the `pktnet_template.png` template in the
