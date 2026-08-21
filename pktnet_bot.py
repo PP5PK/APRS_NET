@@ -247,6 +247,7 @@ def load_config(path):
         "cert_flow_timeout_min": cfg.getint("cert", "flow_timeout_min",
                                             fallback=10),
         "cert_resend_min": cfg.getint("cert", "resend_min", fallback=5),
+        "cert_publish_dir": cfg.get("cert", "publish_dir", fallback=""),
         "cert_template": cfg.get("cert", "template",
                                  fallback="/var/lib/pktnet/certs/"
                                           "pktnet_template.png"),
@@ -1439,10 +1440,27 @@ class PktNetBot:
                 safe_filename(callsign))
             out = os.path.join(self.cfg["cert_dir"], fname)
             draw_certificate(out, ctx)
+            self._publish_cert(out, fname)
             return out
         except Exception as exc:
             LOG.warning("Certificate render failed: %s", exc)
             return None
+
+    def _publish_cert(self, cert_path, fname):
+        """If cert_publish_dir is set, expose the certificate there (by symlink)
+        so the website can list it. Best-effort: never breaks cert delivery."""
+        pub = self.cfg["cert_publish_dir"]
+        if not pub:
+            return
+        try:
+            os.makedirs(pub, exist_ok=True)
+            link = os.path.join(pub, fname)
+            if os.path.islink(link) or os.path.exists(link):
+                return  # already published
+            os.symlink(os.path.abspath(cert_path), link)
+            LOG.info("Published certificate link: %s", link)
+        except OSError as exc:
+            LOG.warning("Could not publish certificate to %s: %s", pub, exc)
 
     def _ensure_adhoc_event(self, now):
         date_str = now.strftime("%Y-%m-%d")

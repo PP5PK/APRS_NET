@@ -298,6 +298,7 @@ contains your passcode.
 | `cert` | `template` | `.../certs/pktnet_template.png` | Certificate background design the data is drawn onto. |
 | `cert` | `flow_timeout_min` | `15` | Drop an unfinished certificate conversation after N minutes. |
 | `cert` | `resend_min` | `5` | If the operator goes quiet mid-flow, resend the last prompt after N minutes (a lost message shouldn't cost the certificate). |
+| `cert` | `publish_dir` | *(empty)* | If set, symlink each generated certificate into this folder so a website on the same server can list it. Empty = disabled. |
 | `email` | `enable` | `false` | Email the generated PDF over SMTP (needs the keys below). |
 | `email` | `host` / `port` | `smtp-relay.brevo.com` / `587` | SMTP server and STARTTLS port. |
 | `email` | `user` / `password` | — | SMTP login and the provider's SMTP key (keep out of git). |
