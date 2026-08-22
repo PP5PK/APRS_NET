@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <title>PP5PK &mdash; Daniel Kondlatsch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --radius: 6px;
+      --transition: 0.25s ease;
+      --font-mono: 'Space Mono', monospace;
+      --font-sans: 'IBM Plex Sans', sans-serif;
+    }
+    [data-theme="dark"] {
+      --bg:         #0D1117;
+      --surface:    #161B22;
+      --surface2:   #1E2530;
+      --border:     #2A3240;
+      --primary:    #4D9EFF;
+      --accent:     #FFB347;
+      --text:       #E6EDF3;
+      --text-muted: #8B949E;
+      --grid-color: rgba(77,158,255,0.06);
+      --glow:       rgba(77,158,255,0.15);
+    }
+    [data-theme="light"] {
+      --bg:         #F0EDE6;
+      --surface:    #FFFFFF;
+      --surface2:   #F8F5EF;
+      --border:     #D8D0C4;
+      --primary:    #0055BB;
+      --accent:     #D06B00;
+      --text:       #1A1A2E;
+      --text-muted: #5C6070;
+      --grid-color: rgba(0,85,187,0.07);
+      --glow:       rgba(0,85,187,0.10);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg); color: var(--text); line-height: 1.6;
+      transition: background var(--transition), color var(--transition);
+      overflow-x: hidden;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background-image:
+        linear-gradient(var(--grid-color) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none; z-index: 0;
+    }
+
+    /* NAV */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 clamp(1.5rem, 5vw, 4rem); height: 60px;
+      transition: background var(--transition);
+    }
+    .nav-call {
+      font-family: var(--font-mono); font-weight: 700; font-size: 1.1rem;
+      color: var(--primary); letter-spacing: 0.05em; text-decoration: none;
+    }
+    .nav-call span { color: var(--accent); }
+    .nav-links { display: flex; align-items: center; gap: 2rem; list-style: none; }
+    .nav-links a {
+      font-size: 0.85rem; font-weight: 500; color: var(--text-muted);
+      text-decoration: none; letter-spacing: 0.04em; text-transform: uppercase;
+      transition: color var(--transition);
+    }
+    .nav-links a:hover { color: var(--primary); }
+    @media (max-width: 600px) { .nav-links { display: none; } }
+
+    /* THEME TOGGLE */
+    #theme-toggle {
+      background: none; border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 6px 10px; cursor: pointer; color: var(--text-muted); font-size: 1rem;
+      transition: border-color var(--transition), color var(--transition);
+      display: flex; align-items: center; gap: 6px;
+    }
+    #theme-toggle:hover { border-color: var(--primary); color: var(--primary); }
+    #theme-toggle .label {
+      font-family: var(--font-mono); font-size: 0.7rem;
+      text-transform: uppercase; letter-spacing: 0.08em;
+    }
+
+    /* LAYOUT */
+    main { position: relative; z-index: 1; }
+    section {
+      padding: clamp(4rem, 8vw, 7rem) clamp(1.5rem, 5vw, 4rem);
+      max-width: 1100px; margin: 0 auto;
+    }
+    .divider { border: none; border-top: 1px solid var(--border); max-width: 1100px; margin: 0 auto; }
+
+    /* HERO */
+    #hero {
+      min-height: calc(100vh - 60px);
+      display: flex; flex-direction: column; justify-content: center;
+      padding-top: 5rem; padding-bottom: 5rem;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: var(--font-mono); font-size: 0.72rem;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--accent); border: 1px solid var(--accent);
+      border-radius: 2px; padding: 5px 12px; margin-bottom: 2rem;
+      opacity: 0; animation: fadeUp 0.6s ease 0.1s forwards;
+    }
+    .hero-badge::before {
+      content: ''; width: 7px; height: 7px;
+      background: var(--accent); border-radius: 50%;
+      animation: pulse 1.8s ease infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.4; transform: scale(1.4); }
+    }
+    .hero-callsign {
+      font-family: var(--font-mono);
+      font-size: clamp(3.5rem, 10vw, 8rem);
+      font-weight: 700; line-height: 1; letter-spacing: -0.02em;
+      color: var(--text); opacity: 0; animation: fadeUp 0.7s ease 0.25s forwards;
+    }
+    .hero-callsign .prefix { color: var(--text-muted); font-weight: 400; }
+    .hero-callsign .suffix { color: var(--primary); }
+    .hero-sub {
+      margin-top: 1.5rem;
+      font-size: clamp(1rem, 2.5vw, 1.25rem); font-weight: 300;
+      color: var(--text-muted); max-width: 560px;
+      opacity: 0; animation: fadeUp 0.7s ease 0.4s forwards;
+    }
+    .hero-sub strong { color: var(--text); font-weight: 500; }
+    .hero-meta {
+      margin-top: 2.5rem; display: flex; flex-wrap: wrap; gap: 1.5rem;
+      opacity: 0; animation: fadeUp 0.7s ease 0.55s forwards;
+    }
+    .meta-chip {
+      display: flex; align-items: center; gap: 8px;
+      font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted);
+    }
+    .meta-chip svg { color: var(--primary); flex-shrink: 0; }
+    .hero-cta {
+      margin-top: 3rem; display: flex; gap: 1rem; flex-wrap: wrap;
+      opacity: 0; animation: fadeUp 0.7s ease 0.7s forwards;
+    }
+
+    /* BUTTONS */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 24px; border-radius: var(--radius);
+      font-family: var(--font-mono); font-size: 0.82rem; font-weight: 700;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      text-decoration: none; cursor: pointer; transition: all var(--transition);
+    }
+    .btn-primary { background: var(--primary); color: var(--bg); border: 1px solid var(--primary); }
+    .btn-primary:hover { filter: brightness(1.15); transform: translateY(-2px); box-shadow: 0 8px 24px var(--glow); }
+    .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-outline:hover { border-color: var(--primary); color: var(--primary); transform: translateY(-2px); }
+
+    /* SECTION HEADER */
+    .section-tag {
+      font-family: var(--font-mono); font-size: 0.7rem;
+      letter-spacing: 0.15em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 0.5rem;
+    }
+    .section-title {
+      font-family: var(--font-mono); font-size: clamp(1.6rem, 4vw, 2.4rem);
+      font-weight: 700; color: var(--text); margin-bottom: 1rem; line-height: 1.2;
+    }
+    .section-desc {
+      font-size: 1rem; color: var(--text-muted); max-width: 560px; margin-bottom: 3rem;
+    }
+
+    /* SOBRE */
+    .about-intro {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: start;
+      margin-bottom: 2.5rem;
+    }
+    @media (max-width: 700px) { .about-intro { grid-template-columns: 1fr; } }
+    .about-text p { color: var(--text-muted); font-size: 0.95rem; line-height: 1.85; margin-bottom: 1rem; }
+    .about-text p strong { color: var(--text); }
+    .about-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.25rem; transition: border-color var(--transition);
+    }
+    .stat-card:hover { border-color: var(--primary); }
+    .stat-value { font-family: var(--font-mono); font-size: 1.5rem; font-weight: 700; color: var(--primary); line-height: 1; }
+    .stat-label { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    /* BIO ACCORDION */
+    .bio-accordion {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+    }
+    .bio-toggle {
+      width: 100%; display: flex; align-items: center; justify-content: space-between;
+      padding: 1.1rem 1.5rem; background: none; border: none; color: var(--text);
+      cursor: pointer; font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700;
+      letter-spacing: 0.05em; text-transform: uppercase; transition: background var(--transition);
+    }
+    .bio-toggle:hover { background: var(--surface2); }
+    .bio-toggle-icon { color: var(--primary); font-size: 1.1rem; }
+    .bio-body { max-height: 0; overflow: hidden; transition: max-height 0.5s ease; }
+    .bio-body.open { max-height: 99999px; }
+    .bio-body-inner { padding: 0 1.5rem 1.5rem; border-top: 1px solid var(--border); }
+    .bio-body-inner p { color: var(--text-muted); font-size: 0.93rem; line-height: 1.85; margin-top: 1.1rem; }
+    .bio-body-inner p strong { color: var(--text); }
+    .bio-body-inner a { color: var(--primary); }
+
+    /* EQUIPAMENTOS */
+    .equip-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 0.6rem;
+    }
+    .equip-item {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 0.6rem 0.9rem;
+      font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .equip-item::before { content: '\25B8'; color: var(--primary); flex-shrink: 0; }
+
+    /* FERRAMENTAS */
+    .tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.25rem; }
+    .tool-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.5rem;
+      text-decoration: none; color: inherit;
+      display: flex; flex-direction: column; gap: 0.75rem;
+      transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+      position: relative; overflow: hidden;
+    }
+    .tool-card::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(135deg, var(--glow), transparent 60%);
+      opacity: 0; transition: opacity var(--transition);
+    }
+    .tool-card:hover { border-color: var(--primary); transform: translateY(-3px); box-shadow: 0 12px 32px var(--glow); }
+    .tool-card:hover::after { opacity: 1; }
+    .tool-icon {
+      width: 40px; height: 40px; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius); display: flex; align-items: center; justify-content: center;
+      color: var(--primary); flex-shrink: 0; position: relative; z-index: 1;
+    }
+    .tool-name { font-family: var(--font-mono); font-size: 0.9rem; font-weight: 700; color: var(--text); position: relative; z-index: 1; }
+    .tool-desc { font-size: 0.83rem; color: var(--text-muted); line-height: 1.55; position: relative; z-index: 1; }
+    .tool-url { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-muted); opacity: 0.5; position: relative; z-index: 1; }
+    .tool-arrow {
+      margin-top: auto; font-family: var(--font-mono); font-size: 0.72rem;
+      color: var(--primary); letter-spacing: 0.08em; text-transform: uppercase;
+      display: flex; align-items: center; gap: 6px; position: relative; z-index: 1;
+    }
+
+    /* PKTNET */
+    .pktnet-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+    .pktnet-steps { position: relative; z-index: 1; font-size: 0.85rem; color: var(--text-muted); line-height: 1.95; }
+    .pktnet-steps code { font-family: var(--font-mono); color: var(--accent); background: var(--surface2); padding: 0.05em 0.4em; border-radius: 4px; font-size: 0.82rem; }
+    .cmd-list { display: grid; gap: 0.45rem; margin-top: 0.2rem; position: relative; z-index: 1; }
+    .cmd-list div { display: flex; gap: 0.6rem; font-size: 0.82rem; align-items: baseline; }
+    .cmd-list code { font-family: var(--font-mono); font-weight: 700; color: var(--primary); background: var(--surface2); padding: 0.05em 0.45em; border-radius: 4px; font-size: 0.78rem; white-space: nowrap; flex-shrink: 0; min-width: 92px; }
+    .cmd-list span { color: var(--text-muted); }
+    .pktnet-cta { text-align: center; margin-top: 1.9rem; display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
+    .pktnet-badge { display: inline-flex; align-items: center; gap: 0.5rem; font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); border: 1px solid var(--border); background: var(--surface); padding: 0.4rem 0.85rem; border-radius: 100px; margin-bottom: 1.25rem; }
+
+    /* HAM RADIO */
+    .ham-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
+    .ham-item {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.25rem;
+      display: flex; align-items: flex-start; gap: 0.75rem;
+      transition: border-color var(--transition);
+    }
+    .ham-item:hover { border-color: var(--accent); }
+    .ham-item-icon { color: var(--accent); flex-shrink: 0; margin-top: 2px; }
+    .ham-item-title { font-family: var(--font-mono); font-size: 0.82rem; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+    .ham-item-desc { font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; }
+
+    /* CONTATO */
+    .contact-wrap {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: clamp(2rem, 5vw, 3rem);
+      display: flex; flex-wrap: wrap; gap: 2rem; align-items: center; justify-content: space-between;
+    }
+    .contact-links { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .contact-link {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 18px; border: 1px solid var(--border); border-radius: var(--radius);
+      font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted);
+      text-decoration: none; transition: all var(--transition);
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .contact-link:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* FOOTER */
+    footer {
+      position: relative; z-index: 1; border-top: 1px solid var(--border);
+      padding: 2rem clamp(1.5rem, 5vw, 4rem);
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;
+    }
+    .footer-call { font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-muted); }
+    .footer-call span { color: var(--primary); }
+    .footer-note { font-size: 0.78rem; color: var(--text-muted); }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a class="nav-call" href="#hero"><span>PP5</span>PK</a>
+    <ul class="nav-links">
+      <li><a href="#sobre">Sobre</a></li>
+      <li><a href="#ferramentas">Ferramentas</a></li>
+      <li><a href="#pktnet">PKTNET</a></li>
+      <li><a href="#projetos">Projetos</a></li>
+      <li><a href="#radioamadorismo">Ham Radio</a></li>
+      <li><a href="#contato">Contato</a></li>
+    </ul>
+    <button id="theme-toggle" aria-label="Alternar tema">
+      <span id="theme-icon"></span>
+      <span class="label" id="theme-label"></span>
+    </button>
+  </nav>
+
+  <main>
+
+    <!-- HERO -->
+    <section id="hero">
+      <div class="hero-badge">Radioamador Brasileiro &middot; Mafra&ndash;SC</div>
+      <h1 class="hero-callsign">
+        <span class="prefix">PP5</span><span class="suffix">PK</span>
+      </h1>
+      <p class="hero-sub">
+        <strong>Daniel Kondlatsch</strong> &mdash; radioamador, desenvolvedor e entusiasta
+        de infraestrutura de voz digital. Mantendo sistemas para a comunidade ham
+        desde o norte de Santa Catarina.
+      </p>
+      <div class="hero-meta">
+        <div class="meta-chip">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4"/></svg>
+          D-Star / YSF / C4FM
+        </div>
+        <div class="meta-chip">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          APRS &middot; FT8 &middot; HF
+        </div>
+        <div class="meta-chip">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          XLX &middot; Linux &middot; Bash &middot; Python
+        </div>
+      </div>
+      <div class="hero-cta">
+        <a href="#ferramentas" class="btn btn-primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          Ferramentas
+        </a>
+        <a href="#sobre" class="btn btn-outline">Sobre mim</a>
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- SOBRE -->
+    <section id="sobre">
+      <p class="section-tag">// 001</p>
+      <h2 class="section-title">Sobre mim</h2>
+      <div class="about-intro">
+        <div class="about-text">
+          <p>Sou <strong>Daniel, PP5PK</strong> &mdash; operador de radio amador, perfeccionista obstinado e entendido de tecnologia. Atuo com radioamadorismo digital focado em <strong>D-Star, YSF, APRS e Refletores XLX</strong>, e mantenho uma infraestrutura propria de servidores para a comunidade.</p>
+          <p>Tenho experiencia em administracao Linux, scripting Bash e Python e desenvolvimento web, combinando essas habilidades para criar e manter ferramentas praticas para radioamadores &mdash; desde dashboards de refletores ate gerenciadores de listas de repetidoras.</p>
+          <p>Apaixonado por motores, carros e armas, defensor ANCAP e de direita. Baseado em <strong>Santa Catarina</strong>, sempre em busca de novos QSOs e projetos que unam tecnologia e radioamadorismo.</p>
+        </div>
+        <div class="about-stats">
+          <div class="stat-card">
+            <div class="stat-value">APRS</div>
+            <div class="stat-label">iGate &middot; Digipeater ativo</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">XLX</div>
+            <div class="stat-label">Refletores multimodo / multiprotocolo</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">FRN</div>
+            <div class="stat-label">Unico servidor nas Americas</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">YSF</div>
+            <div class="stat-label">Refletores C4FM</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bio-accordion">
+        <button class="bio-toggle" onclick="toggleBio()">
+          <span>Biografia completa</span>
+          <span class="bio-toggle-icon" id="bio-icon">&#9660;</span>
+        </button>
+        <div class="bio-body" id="bio-body">
+          <div class="bio-body-inner">
+
+            <p>Meu nome e <a href="https://cloud.dvbr.net/images/Daniel.jpeg" target="_blank" rel="noopener"><strong>Daniel Kondlatsch</strong></a>, brasileiro, de nome tradicional e sobrenome incomum, bisneto de imigrantes alemaes que aportaram no Brasil em 1878 vindos de Nordbohmen, regiao norte da Boemia situado ao sul da Alemanha, nascido em <strong>Rio Negro&ndash;PR</strong> e residente em <a href="https://pt.wikipedia.org/wiki/Mafra_(Santa_Catarina)" target="_blank" rel="noopener"><strong>Mafra&ndash;SC</strong></a>, municipio situado ao norte do estado de Santa Catarina na divisa com o Parana, 90 km ao sul da capital paranaense Curitiba. Ate 1917 Mafra ainda nao existia &mdash; o municipio foi criado apos a Guerra do Contestado como resultado da redemarcacao de territorios entre os Estados do Parana e Santa Catarina, situado a margem esquerda do Rio Negro, desmembrado do município de nome homônimo ao rio, que continuou pertencendo ao Paraná. O nome e uma homenagem a vitoria do jurista catarinense <a href="https://pt.wikipedia.org/wiki/Manuel_da_Silva_Mafra" target="_blank" rel="noopener">Manuel da Silva Mafra</a>, o <strong>Conselheiro Mafra</strong>, que defendeu Santa Catarina na questao dos limites entre os Estados no referido conflito.</p>
+
+            <p>Desde moleque eu sempre tive muito interesse em equipamentos eletronicos, transmissores, maquinas, motores e muito da area de mecanica, vivia fedendo a gasolina, gastando energia eletrica e fazendo barulho. No inicio dos anos 90, no auge dos meus 12 anos de idade, ja era um experiente "desmontador de coisas", um detalhe interessante e que alem de desmontar eu sempre consegui montar elas de volta, um ponto a favor! Lembro que via nas paginas dos gibis do Tio Patinhas as propagandas dos cursos por correspondencia do <strong>Instituto Universal Brasileiro</strong>. Certo dia resolvi preencher um daqueles recortes e iniciar o curso de Eletronica Basica, Radiotecnico, Audio e Televisao &mdash; devorei o material e montei meu primeiro receptor AM. Foi ele que abriu as portas desse universo para mim.</p>
+
+            <p>Muitos fundamentos que aprendi sao desse tempo: descobri o que sao transistores, resistores, capacitores, aprendi como as coisas funcionam e acabei descobrindo que tinha o dom de executar soldas perfeitas ao montar placas de circuitos &mdash; o que no futuro me rendeu alguma vantagem ao entrar no mercado de trabalho. Na mesma epoca, meu pai trouxe para casa um <strong>Transceptor CCE 40 canais AM</strong>, ligado a uma plano terra fixada num poste de madeira nos fundos de casa. Como bom "fucador", facilmente me entendi com aquilo tudo e naturalmente assumi o controle da estacao. Ali comecei na faixa do cidadao usando o indicativo que meu pai havia registrado no Dentel, o <strong>PX5B6051</strong> &mdash; naquele tempo sem internet a consulta ao dono do indicativo era praticamente impossivel, fazendo com que eu o usasse por quase 10 anos.</p>
+
+            <p>Aquilo dava interferencia ate no telefone do vizinho &mdash; ver TV na redondeza era complicado, nao tinha um que nao reclamasse que estava me escutando nos mais variados dispositivos. Esse radio por muito tempo foi meu professor: com ele conheci muita gente, incontaveis macanudos que tiveram muita calma e paciencia para me ensinar de tudo um pouco. Hoje sou eu que tento retribuir.</p>
+
+            <p>Mais tarde montei uma estacao na picape, uma <strong>Chevrolet C-10 1974</strong>: um SuperStar JA "cara preta" com mais funcoes do que eu conseguia usar, ligado a uma botina de 500 W e uma maria-mole que me proporcionavam contatos simplesmente impossiveis. Meu primeiro DX em AM foi com um cidadao de Cacoal&ndash;RO. Quando me mudei para Jaragua do Sul&ndash;SC em 1998 para cursar Engenharia Mecanica, me apelidaram de "pescador" em alusao a maria-mole no para-choque &mdash; e acabei trazendo para a faixa alguns colegas de classe que se interessaram no hobby.</p>
+
+            <p>Me afastei do radio no inicio dos anos 2000 quando o trabalho tomou conta do meu tempo. Em 2002 furtaram todo o equipamento da picape &mdash; depois disso nunca mais comprei nada, mas ficava namorando os lancamentos nos catalogos gringos que via na internet, imaginando se algum dia teria a oportunidade de continuar o que havia comecado quando moleque.</p>
+
+            <p>Lamentavelmente, em novembro de 2016 minha esposa e eu sofremos um acidente automobilistico onde ambos fraturamos a coluna. Ficamos com lesao medular e uma serie de problemas neurologicos &mdash; os piores sao a neuropatia (dor persistente) e a incapacidade do corpo de regular a temperatura corretamente. Eu alem disso ainda fiquei <strong>paraplegico</strong>. Passamos praticamente o dia todo em casa pois tornou-se impossivel executar alguma atividade laboral adequadamente. Para ocupar melhor a cabeca e o tempo que agora tenho de sobra, resolvi operar no radio novamente.</p>
+
+            <p>Depois de economizar, comprei um <strong>Yaesu VX-8DR</strong> &mdash; sonho de consumo que eu namorava desde o lancamento. Comprei todos os acessorios e usei ate gastar o teclado(!). Considero ate hoje um dos HTs analogicos mais completos e robustos do mercado. Foi com ele que tive o primeiro contato com o APRS, uma das minhas paixoes e que hoje domino completamente. Como ainda nao tinha a licenca, marquei prova na Anatel em Curitiba e em meados de 2019 obtive a licenca <strong>Classe C</strong>, registrando minha primeira estacao como <strong>PU5KOD</strong> &mdash; KO de KOndlatsch e D de Daniel, escolhido por ser facil de declinar nos QSOs.</p>
+
+            <p>No final de 2019 comprei um <strong>Yaesu FT-3DR</strong> e tive o primeiro contato com C4FM. Nao tinha interlocutor ate que vi num video do YouTube um colega usando um JumboSpot. Comprei um para experimentar &mdash; mau eu sabia no que estava me metendo. Minha passagem como Analista de Sistemas me ajudou a entender rapidamente como tudo funciona, logo estava fazendo amigos nos modos digitais. Uma das coisas que gostei muito foi que com o hotspot em YSF e o cross-mode configurado adequadamente e possivel operar em outras modalidades com muito mais facilidade do que usando um radio da propria modalidade.</p>
+
+            <p>Em outubro de 2020, sem pretensao alguma, coloquei no ar o <strong>YSF 77777 &ndash; BR-BRAZIL</strong> &mdash; o quinto refletor YSF brasileiro a ser registrado. O objetivo inicial era ser um ponto de encontro com os amigos sem toda aquela formalidade comum, talvez por isso rapidamente reuniu adeptos e tornou-se o <strong>refletor YSF mais movimentado do Brasil</strong>. O dashboard esta disponivel em <a href="https://dvbr.net" target="_blank" rel="noopener">dvbr.net</a>.</p>
+
+            <p>Tambem mantive ativa a sala <strong>#82758 dvAMERICA</strong> no System Fusion da Yaesu, que e reconhecida pela excelente qualidade de audio &mdash; porem acabei desativando-a devido a baixa adesao pelo alto custo dos equipamentos. Vale registrar uma confusao comum: apesar de parecidos, o Fusion/Wires-X (sistema oficial Yaesu) nao tem relacao com o YSF, que e um modo nao proprietario desenvolvido e mantido pelo radioamador alemao <strong>DG9VH &ndash; Kim Huebel</strong> (ysfreflector.de).</p>
+
+            <p>Em abril de 2023 mergulhei no <strong>D-Star</strong>, modalidade que sempre teve meu respeito pelo pioneirismo. Adquiri um <strong>ICOM ID-51A Plus 2</strong> e ativei o refletor multiprotocolo <strong>XLXBRA</strong> &mdash; sem links com qualquer outra modalidade, seguindo os mesmos preceitos do YSF 77777. Em pouco tempo ja tornou-se conhecido entre os adeptos. Possui os modulos A, B, C, D e E ativos &mdash; o modulo D e o principal. Acesse via REF (DPlus), XRF (DExtra), DCS ou XLX; o dashboard esta em <a href="https://xlxbra.net" target="_blank" rel="noopener">xlxbra.net</a>.</p>
+
+            <p>Tambem mantenho um <strong>iGate/Digipeater APRS</strong> rodando o <strong>DireWolf v1.8</strong>, instalado num Raspberry Pi 0W com um Yaesu FT-2980R ligado a uma antena plano terra 3x5/8 num dos pontos mais altos da regiao &mdash; oferecendo cobertura de aproximadamente 100 km, area sem outras estacoes dessa natureza.</p>
+
+            <p>Outra iniciativa foi resgatar o <strong>Free Radio Network (FRN)</strong>, sistema criado na Europa nos anos 90 usando VoIP para interligar repetidoras analogicas &mdash; predecessor de sistemas como Echolink, Zello e Peanut. Ativei o <strong>unico servidor FRN das Americas</strong>, acessivel em dvbr.net porta 10024 (aplicacoes em freeradionetwork.de). A qualidade de voz foi a maior surpresa: e a melhor que ja ouvi dentre todos os modos DV que operei.</p>
+
+            <p>Estou viabilizando a <strong>primeira repetidora digital da regiao</strong>, em UHF hibrida nos modos YSF e D-Star, com dois transmissores <strong>Motorola PRO-5100 de 40 W</strong> &mdash; reconhecidos pela robustez. O projeto aguarda a finalizacao da obra do edificio onde sera implantada.</p>
+
+            <p>Em HF, no inicio de 2021 adquiri um <strong>Yaesu FT-857D</strong> com a antena <strong>ATAS-120A</strong> (40m a 70cm). Implantei a estacao no final de 2021 e fiquei impressionado com o alcance que uma estacao montada sem grandes recursos consegue ter em FT8, FT4, FreeDV, ROSS e VarAC &mdash; e possivel alcancar praticamente o mundo todo sem muito esforco.</p>
+
+            <p><strong>Equipamentos atuais:</strong></p>
+
+            <div class="equip-grid" style="margin-top:0.75rem;">
+              <div class="equip-item">HT Yaesu VX-8DR + BU-2 + FGPS-2</div>
+              <div class="equip-item">HT Yaesu VX-8GR</div>
+              <div class="equip-item">HT Yaesu FT-1DR</div>
+              <div class="equip-item">HT ICOM ID-51A Plus 2</div>
+              <div class="equip-item">HT ICOM ID-52A</div>
+              <div class="equip-item">VHF Yaesu FT-2980R (iGate/Digi APRS)</div>
+              <div class="equip-item">HF Yaesu FT-857D + MH-59A8J + FC-30 + ATAS-120A</div>
+              <div class="equip-item">Dual Band Yaesu FT-90R</div>
+              <div class="equip-item">Dual Band Yaesu FTM-100DR + FVS-2 + BU-2</div>
+              <div class="equip-item">UHF Motorola PRO-5100 x2 (repetidora)</div>
+            </div>
+
+            <p style="margin-top:1.5rem;">Essa e a minha trajetoria. Desde o inicio estou aprendendo e cada vez mais compreendo como funciona esse universo. Se tem uma coisa que me da satisfacao e poder compartilhar todo esse conhecimento &mdash; informacao que nao e compartilhada nao serve pra nada. Creio que afinal seja esse o real fundamento do hobby: <strong>experimentacao, aprendizado e compartilhamento</strong>.</p>
+
+            <p><em>Nos encontramos pelas faixas! (ou nao...)</em></p>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- FERRAMENTAS -->
+    <section id="ferramentas">
+      <p class="section-tag">// 002</p>
+      <h2 class="section-title">Ferramentas &amp; Servicos</h2>
+      <p class="section-desc">Recursos mantidos neste servidor, disponiveis para a comunidade de radioamadores.</p>
+      <div class="tools-grid">
+
+        <a href="https://xlxbra.net" target="_blank" rel="noopener" class="tool-card">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4M3.5 3.5a14 14 0 0 0 0 17M20.5 3.5a14 14 0 0 1 0 17"/></svg>
+          </div>
+          <div class="tool-name">XLX Dashboard &middot; XLXBRA</div>
+          <div class="tool-desc">Painel do Refletor XLXBRA &mdash; modulos ativos, usuarios conectados e trafego em tempo real.</div>
+          <div class="tool-url">xlxbra.net</div>
+          <div class="tool-arrow">Acessar &rarr;</div>
+        </a>
+
+        <a href="https://dvbr.net" target="_blank" rel="noopener" class="tool-card">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h4M18 12h4M12 2v4M12 18v4"/><circle cx="12" cy="12" r="4"/><path d="M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M19.07 4.93l-2.83 2.83M7.76 16.24l-2.83 2.83"/></svg>
+          </div>
+          <div class="tool-name">YSF Dashboard &middot; 77777</div>
+          <div class="tool-desc">Painel do Refletor YSF 77777 BR-BRAZIL &mdash; o mais movimentado do Brasil. Salas, operadores e historico de QSOs.</div>
+          <div class="tool-url">dvbr.net</div>
+          <div class="tool-arrow">Acessar &rarr;</div>
+        </a>
+
+        <a href="https://aprs.dvbr.net" target="_blank" rel="noopener" class="tool-card">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <div class="tool-name">APRS Passcode</div>
+          <div class="tool-desc">Gerador de senhas para estacoes APRS. Digite seu indicativo e obtenha o passcode instantaneamente.</div>
+          <div class="tool-url">aprs.dvbr.net</div>
+          <div class="tool-arrow">Acessar &rarr;</div>
+        </a>
+
+        <a href="https://cloud.dvbr.net" target="_blank" rel="noopener" class="tool-card">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+          </div>
+          <div class="tool-name">Arquivos Publicos</div>
+          <div class="tool-desc">Diretorio publico de arquivos compartilhados &mdash; firmwares, configuracoes, documentos e utilitarios.</div>
+          <div class="tool-url">cloud.dvbr.net</div>
+          <div class="tool-arrow">Acessar &rarr;</div>
+        </a>
+
+        <a href="https://cgnat.dvbr.net/cgnat_widget.html" target="_blank" rel="noopener" class="tool-card">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </div>
+          <div class="tool-name">Teste de Conexao &middot; CGNAT</div>
+          <div class="tool-desc">Descubra em segundos se voce tem um IP publico ou esta atras de CGNAT &mdash; util para hospedar servicos e abrir portas.</div>
+          <div class="tool-url">cgnat.dvbr.net</div>
+          <div class="tool-arrow">Acessar &rarr;</div>
+        </a>
+
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- PKTNET -->
+    <section id="pktnet">
+      <p class="section-tag">// 003</p>
+      <h2 class="section-title">APRS PKTNET</h2>
+      <p class="section-desc">Nossa Net de APRS por mensagens. Envie
+        <strong>CHECK</strong> para <strong>PKTNET</strong> e receba seu
+        certificado de participa&ccedil;&atilde;o em PDF. H&aacute; tamb&eacute;m
+        uma sala de bate-papo em grupo &mdash; entre com <strong>JOIN</strong>
+        para <strong>PKTQSO</strong>.</p>
+
+      <div class="pktnet-grid">
+
+        <div class="tool-card" style="cursor:default">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+          </div>
+          <div class="tool-name">Como participar</div>
+          <div class="pktnet-steps">
+            1. Envie <code>CHECK</code> para <code>PKTNET</code> via APRS.<br />
+            2. Informe seu e-mail quando solicitado.<br />
+            3. Receba seu certificado em PDF.<br />
+            <br />
+            Dica: envie <code>HELP</code> em qualquer Net para ver os comandos.
+          </div>
+          <div class="tool-arrow" style="color:var(--accent)">Certificado garantido para todos</div>
+        </div>
+
+        <div class="tool-card" style="cursor:default">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          </div>
+          <div class="tool-name">Comandos &middot; PKTNET</div>
+          <div class="cmd-list">
+            <div><code>STATUS</code><span>nome da Net + qtd. de usu&aacute;rios</span></div>
+            <div><code>LAST</code><span>&uacute;ltimos 5 check-ins</span></div>
+            <div><code>TIME</code><span>tempo restante</span></div>
+            <div><code>ME</code><span>suas participa&ccedil;&otilde;es + &uacute;ltimo CHECK</span></div>
+            <div><code>RESEND</code><span>reenvia o certificado</span></div>
+            <div><code>RESET</code><span>reinicia o processo</span></div>
+          </div>
+        </div>
+
+        <div class="tool-card" style="cursor:default">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <div class="tool-name">Sala de chat &middot; PKTQSO</div>
+          <div class="cmd-list">
+            <div><code>JOIN</code><span>entrar na sala</span></div>
+            <div><code>LEAVE / QRT</code><span>sair da sala</span></div>
+            <div><code>WHO</code><span>lista de participantes</span></div>
+          </div>
+          <div class="tool-arrow">Envie para PKTQSO &rarr;</div>
+        </div>
+
+      </div>
+
+      <div class="pktnet-cta">
+        <a href="aprsnet_certs.php" class="btn btn-primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+          Baixar meu certificado
+        </a>
+        <a href="aprsnet_participants.php" class="btn btn-outline">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Ver participantes
+        </a>
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- HAM RADIO -->
+    <section id="radioamadorismo">
+      <p class="section-tag">// 004</p>
+      <h2 class="section-title">Ham Radio</h2>
+      <p class="section-desc">Modos, tecnologias e sistemas que opero e mantenho.</p>
+      <div class="ham-grid">
+        <div class="ham-item">
+          <div class="ham-item-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4"/></svg>
+          </div>
+          <div>
+            <div class="ham-item-title">D-Star / DV</div>
+            <div class="ham-item-desc">Voz digital via Refletores XLX, gateways e radios ICOM.</div>
+          </div>
+        </div>
+        <div class="ham-item">
+          <div class="ham-item-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          </div>
+          <div>
+            <div class="ham-item-title">APRS</div>
+            <div class="ham-item-desc">Rastreamento de posicao e telemetria via AX.25 &mdash; iGate e Digipeater ativos.</div>
+          </div>
+        </div>
+        <div class="ham-item">
+          <div class="ham-item-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h4M18 12h4M12 2v4M12 18v4"/><circle cx="12" cy="12" r="4"/></svg>
+          </div>
+          <div>
+            <div class="ham-item-title">YSF / C4FM</div>
+            <div class="ham-item-desc">Refletor YSF 77777 BR-BRAZIL &mdash; o mais movimentado do Brasil desde 2020.</div>
+          </div>
+        </div>
+        <div class="ham-item">
+          <div class="ham-item-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 1 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+          </div>
+          <div>
+            <div class="ham-item-title">HF &middot; FT8 / FT4</div>
+            <div class="ham-item-desc">Yaesu FT-857D + ATAS-120A. Tambem FreeDV, ROSS, VarAC e modos experimentais.</div>
+          </div>
+        </div>
+        <div class="ham-item">
+          <div class="ham-item-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+          </div>
+          <div>
+            <div class="ham-item-title">FM / Repetidoras</div>
+            <div class="ham-item-desc">Operacao FM com CTCSS e projeto de repetidora hibrida YSF/D-Star em UHF.</div>
+          </div>
+        </div>
+        <div class="ham-item">
+          <div class="ham-item-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          </div>
+          <div>
+            <div class="ham-item-title">Infraestrutura</div>
+            <div class="ham-item-desc">Servidores Linux, scripts Bash e automacao para sistemas de radioamador.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- PROJETOS -->
+    <section id="projetos">
+      <p class="section-tag">// 005</p>
+      <h2 class="section-title">Projetos</h2>
+      <p class="section-desc">Projetos open-source publicados no GitHub, voltados para a comunidade de radioamadores.</p>
+      <div class="tools-grid">
+
+        <a href="https://github.com/PP5PK/XLX_Installer" target="_blank" rel="noopener" class="tool-card">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          </div>
+          <div class="tool-name">XLX Installer</div>
+          <div class="tool-desc">Script Bash que automatiza a instalacao completa de um Refletor XLX Multiprotocolo/Multimodo com Dashboard integrado e Servidor de Echo-Test.</div>
+          <div class="tool-url">Shell &middot; 11 stars</div>
+          <div class="tool-arrow">Ver no GitHub &rarr;</div>
+        </a>
+
+        <a href="https://github.com/PP5PK/XLX_Dark_Dashboard" target="_blank" rel="noopener" class="tool-card">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          </div>
+          <div class="tool-name">XLX Dark Dashboard</div>
+          <div class="tool-desc">Dashboard personalizado com melhorias de UX e tema escuro para Refletores XLX. Base do painel utilizado no XLXBRA.</div>
+          <div class="tool-url">PHP &middot; 3 stars</div>
+          <div class="tool-arrow">Ver no GitHub &rarr;</div>
+        </a>
+
+        <a href="https://github.com/PP5PK/monitor_XLX" target="_blank" rel="noopener" class="tool-card">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </div>
+          <div class="tool-name">monitor_XLX</div>
+          <div class="tool-desc">Bot Telegram que monitora um Refletor XLX e envia notificacoes em tempo real de conexao/desconexao de repetidoras e estacoes bloqueadas, com links para o QRZ.com.</div>
+          <div class="tool-url">Shell &middot; 2 stars</div>
+          <div class="tool-arrow">Ver no GitHub &rarr;</div>
+        </a>
+
+        <a href="https://github.com/PP5PK/DR_List_Manager" target="_blank" rel="noopener" class="tool-card">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </div>
+          <div class="tool-name">DR List Manager</div>
+          <div class="tool-desc">Gerenciador interativo Bash para listas de repetidoras no formato CSV do modo DR do ICOM. Valida 17 campos, repara dados corrompidos, suporta tons CTCSS e operacoes CRUD com backup automatico.</div>
+          <div class="tool-url">Shell &middot; 1 star</div>
+          <div class="tool-arrow">Ver no GitHub &rarr;</div>
+        </a>
+
+        <a href="https://github.com/PP5PK/APRS-IS_Passcode_Generator" target="_blank" rel="noopener" class="tool-card">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <div class="tool-name">APRS Passcode Generator</div>
+          <div class="tool-desc">Ferramenta web para gerar passcodes APRS-IS a partir do indicativo. Interface minimalista em HTML/JS puro, sem dependencias. Disponivel tambem em aprs.dvbr.net.</div>
+          <div class="tool-url">HTML &middot; 1 star</div>
+          <div class="tool-arrow">Ver no GitHub &rarr;</div>
+        </a>
+
+        <a href="https://github.com/PP5PK/Waveshare_e-paper_apps" target="_blank" rel="noopener" class="tool-card">
+          <div class="tool-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+          </div>
+          <div class="tool-name">Waveshare e-Paper Apps</div>
+          <div class="tool-desc">Colecao de apps Python para o display e-Paper 2.13" da Waveshare no Raspberry Pi: monitor de sistema com relogio em tempo real e dashboard do Refletor XLX com ultimas estacoes ouvidas.</div>
+          <div class="tool-url">Python &middot; 1 star</div>
+          <div class="tool-arrow">Ver no GitHub &rarr;</div>
+        </a>
+
+      </div>
+      <div style="margin-top:1.5rem;text-align:right;">
+        <a href="https://github.com/PP5PK" target="_blank" rel="noopener" class="btn btn-outline">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+          Ver todos os repositorios no GitHub
+        </a>
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- CONTATO -->
+    <section id="contato">
+      <div class="contact-wrap">
+        <div>
+          <p class="section-tag">// 006</p>
+          <h2 class="section-title">73 de PP5PK</h2>
+          <p style="color:var(--text-muted);font-size:0.9rem;max-width:380px;">
+            QRZ, e-mail, Telegram ou WhatsApp &mdash; o canal e voce quem escolhe.
+          </p>
+        </div>
+        <div class="contact-links">
+          <a href="https://www.qrz.com/db/PU5KOD" target="_blank" rel="noopener" class="contact-link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            QRZ.com
+          </a>
+          <a id="email-link" class="contact-link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            E-mail
+          </a>
+          <a href="https://t.me/PU5KOD" target="_blank" rel="noopener" class="contact-link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            Telegram
+          </a>
+          <a href="https://api.whatsapp.com/send?phone=5541991912000" target="_blank" rel="noopener" class="contact-link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            WhatsApp
+          </a>
+          <a href="https://github.com/PP5PK" target="_blank" rel="noopener" class="contact-link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+            GitHub
+          </a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="footer-call"><span>PP5PK</span> &middot; Daniel Kondlatsch &middot; Mafra&ndash;SC &middot; Brasil</div>
+    <div class="footer-note">73 &amp; 88 &middot; Feito com &hearts; e muito RF</div>
+  </footer>
+
+  <script>
+    // Theme toggle
+    var html = document.documentElement;
+    var btn  = document.getElementById('theme-toggle');
+    var icon = document.getElementById('theme-icon');
+    var lbl  = document.getElementById('theme-label');
+
+    var saved = localStorage.getItem('theme') ||
+      (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    applyTheme(saved);
+
+    btn.addEventListener('click', function() {
+      var next = html.dataset.theme === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+      localStorage.setItem('theme', next);
+    });
+
+    function applyTheme(t) {
+      html.dataset.theme = t;
+      icon.textContent = t === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
+      lbl.textContent  = t === 'dark' ? 'Claro' : 'Escuro';
+    }
+
+    // Bio accordion
+    function toggleBio() {
+      var body = document.getElementById('bio-body');
+      var icn  = document.getElementById('bio-icon');
+      var open = body.classList.toggle('open');
+      icn.innerHTML = open ? '&#9650;' : '&#9660;';
+    }
+
+    // Set email link via JS to avoid scraper/Cloudflare obfuscation
+    (function() {
+      var u = 'svrutz';
+      var d = 'gmail.com';
+      var el = document.getElementById('email-link');
+      el.href = 'mailto:' + u + '@' + d;
+    })();
+  </script>
+
+</body>
+</html>
