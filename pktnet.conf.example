@@ -42,6 +42,13 @@ paused_text  = PKTNET under maintenance, try again in a few minutes.
 #   Public (anyone): STATUS, LAST, TIME, ME, RESEND, HELP
 #   Admin  (below):  USERS, START, STOP, PAUSE, RESTART
 admin_calls = PP5MFA PP5PK
+# Callsigns to never respond to (automated APRS services), to avoid message
+# loops. Space/comma separated.
+ignore_calls = QRX ANSRVR WLNK-1
+# Anti-flood: if a sender exceeds this many messages per minute, stop responding
+# to it for rate_cooldown_min minutes. rate_limit_per_min = 0 disables it.
+rate_limit_per_min = 10
+rate_cooldown_min = 10
 
 [room]
 # Optional group-chat room. Users send a message to this callsign; anything a

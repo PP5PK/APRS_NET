@@ -213,6 +213,15 @@ def load_config(path):
                                fallback="PKTNET under maintenance, try again "
                                         "in a few minutes."),
         "admin_calls": _parse_calls(cfg.get("net", "admin_calls", fallback="")),
+        # Callsigns to never respond to (no ACK, no reply) - typically automated
+        # APRS services, to avoid message loops.
+        "ignore_calls": _parse_calls(cfg.get("net", "ignore_calls",
+                                             fallback="QRX ANSRVR WLNK-1")),
+        # Anti-flood: if a sender exceeds this many messages per minute, stop
+        # responding to it for rate_cooldown_min minutes. 0 disables.
+        "rate_limit_per_min": cfg.getint("net", "rate_limit_per_min",
+                                         fallback=10),
+        "rate_cooldown_min": cfg.getint("net", "rate_cooldown_min", fallback=10),
         "checkin_keyword": cfg.get("net", "checkin_keyword",
                                    fallback="CHECK").upper().strip(),
         "checkin_hint": cfg.get("net", "checkin_hint",
@@ -667,6 +676,8 @@ class PktNetBot:
         self.last_keepalive = 0.0
         self._last_flow_check = 0.0
         self._room_last = {}   # in-memory per-sender relay cooldown
+        self._msg_times = {}   # base call -> recent message monotonic times
+        self._flood_until = {}  # base call -> muted until (monotonic)
 
     # -- lifecycle --------------------------------------------------------- #
 
@@ -788,6 +799,29 @@ class PktNetBot:
 
     # -- inbound ----------------------------------------------------------- #
 
+    def _is_flooding(self, base):
+        """Return True if this sender is over the per-minute message rate, and
+        mute it for a cooldown. Protects against message loops with other bots."""
+        limit = self.cfg["rate_limit_per_min"]
+        if limit <= 0:
+            return False
+        now = time.monotonic()
+        until = self._flood_until.get(base, 0.0)
+        if now < until:
+            return True                       # still muted
+        times = self._msg_times.setdefault(base, [])
+        times.append(now)
+        cutoff = now - 60.0
+        while times and times[0] < cutoff:
+            times.pop(0)
+        if len(times) > limit:
+            self._flood_until[base] = now + self.cfg["rate_cooldown_min"] * 60
+            times.clear()
+            LOG.warning("Rate limit hit for %s (>%d msgs/min); muting for %d min",
+                        base, limit, self.cfg["rate_cooldown_min"])
+            return True
+        return False
+
     def _handle_line(self, line):
         if line.startswith("#"):
             return
@@ -807,6 +841,12 @@ class PktNetBot:
         if source == net_call or (room_call and source == room_call):
             return
 
+        base = base_call(source)
+        # Never respond to known automated services (avoids message loops).
+        if base in self.cfg["ignore_calls"]:
+            LOG.info("Ignoring message from service %s", source)
+            return
+
         is_net = addressee == net_call
         is_room = bool(room_call) and addressee == room_call
         if not (is_net or is_room):
@@ -816,6 +856,10 @@ class PktNetBot:
         m = ACK_RE.match(text.strip())
         if m:
             self._clear_pending(source, m.group(2))
+            return
+
+        # Anti-flood: stop feeding a sender that is looping/spamming us.
+        if self._is_flooding(base):
             return
 
         LOG.info("Message from %s to %s: %r (msgno=%s)",

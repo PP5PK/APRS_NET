@@ -287,6 +287,9 @@ contains your passcode.
 | `net` | `dup_text` | `Already registered {time}z. 73 de PP5PK` | Reply when the operator already checked in. |
 | `net` | `closed_text` | `PKTNET not active. 73 de PP5PK` | Reply when no event is active (only in `require_active_event = true` mode). |
 | `net` | `admin_calls` | *(empty)* | Callsigns allowed to send admin remote-control commands (matched by base call, SSID ignored). Empty disables admin commands. |
+| `net` | `ignore_calls` | `QRX ANSRVR WLNK-1` | Callsigns to never respond to (automated APRS services), to avoid message loops. |
+| `net` | `rate_limit_per_min` | `10` | Mute a sender that exceeds this many messages/minute (loop/flood protection). `0` disables. |
+| `net` | `rate_cooldown_min` | `10` | How long a rate-limited sender stays muted, in minutes. |
 | `net` | `paused_text` | `PKTNET under maintenance...` | Reply sent to check-ins while the net is paused. |
 | `room` | `room_call` | *(empty)* | Group-chat room callsign (e.g. `PKTQSO`). Empty disables the room. |
 | `room` | `timeout_min` | `1440` | Drop room members idle for this many minutes. |
