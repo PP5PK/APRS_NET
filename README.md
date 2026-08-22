@@ -237,7 +237,11 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=/var/lib/pktnet
+# ProtectSystem=strict makes everything read-only to the service except the
+# paths below. If you set [cert] publish_dir, add that folder here too (the
+# leading '-' makes systemd ignore it when absent) and let the pktnet user
+# write to it.
+ReadWritePaths=/var/lib/pktnet -/var/www/html/cloud/aprsnet_certs
 
 [Install]
 WantedBy=multi-user.target
@@ -301,7 +305,7 @@ contains your passcode.
 | `cert` | `template` | `.../certs/pktnet_template.png` | Certificate background design the data is drawn onto. |
 | `cert` | `flow_timeout_min` | `15` | Drop an unfinished certificate conversation after N minutes. |
 | `cert` | `resend_min` | `5` | If the operator goes quiet mid-flow, resend the last prompt after N minutes (a lost message shouldn't cost the certificate). |
-| `cert` | `publish_dir` | *(empty)* | If set, symlink each generated certificate into this folder so a website on the same server can list it. Empty = disabled. |
+| `cert` | `publish_dir` | *(empty)* | If set, symlink each generated certificate into this folder so a website on the same server can list it. Empty = disabled. Requires the folder to be in the service's `ReadWritePaths` and writable by the `pktnet` user. |
 | `email` | `enable` | `false` | Email the generated PDF over SMTP (needs the keys below). |
 | `email` | `host` / `port` | `smtp-relay.brevo.com` / `587` | SMTP server and STARTTLS port. |
 | `email` | `user` / `password` | — | SMTP login and the provider's SMTP key (keep out of git). |
