@@ -26,6 +26,7 @@ CONF_FILE="${CONF_DIR}/pktnet.conf"
 DATA_DIR="/var/lib/pktnet"
 BIN_DIR="/usr/local/bin"
 SVC_USER="pktnet"
+SITE_DIR="/var/www/html/cloud/aprsnet_certs"
 
 INSTALL_DEPS=1
 START_SERVICE=1
@@ -225,12 +226,16 @@ Group=${SVC_USER}
 ExecStart=/usr/bin/python3 ${INSTALL_DIR}/pktnet_bot.py run --config ${CONF_FILE}
 Restart=on-failure
 RestartSec=10
-
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=${DATA_DIR}
+# ProtectSystem=strict makes the whole filesystem read-only to the service
+# except the paths below. /var/lib/pktnet holds the database and certificates.
+# If you set [cert] publish_dir to expose certificates to a website, add that
+# folder here too (the leading '-' makes systemd ignore it if it is absent),
+# and make sure the pktnet user can write to it.
+ReadWritePaths=${DATA_DIR} -${SITE_DIR}
 
 [Install]
 WantedBy=multi-user.target
