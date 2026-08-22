@@ -31,10 +31,10 @@ function fmt_date($iso) {                            // YYYY-MM-DD -> DD/MM/YYYY
     $d = DateTime::createFromFormat('Y-m-d', (string)$iso);
     return $d ? $d->format('d/m/Y') : htmlspecialchars((string)$iso);
 }
-function fmt_stamp($iso) {                           // ISO -> YYYY/MM/DD, HH:MM:SS (UTC)
+function fmt_stamp($iso) {                           // ISO -> YYYY/MM/DD, HH:MM:SSz (UTC)
     try {
         $d = new DateTime($iso); $d->setTimezone(new DateTimeZone('UTC'));
-        return $d->format('Y/m/d, H:i:s');
+        return $d->format('Y/m/d, H:i:s') . 'z';
     } catch (Exception $e) { return ''; }
 }
 
@@ -255,7 +255,7 @@ try {
             $inner = '<span class="idx">' . $i . '</span><span class="info">'
                    . '<span class="call">' . htmlspecialchars($op['call']) . '</span>'
                    . ($op['name'] ? '<span class="name">' . htmlspecialchars($op['name']) . '</span>' : '')
-                   . ($op['stamp'] ? '<span class="stamp">[' . htmlspecialchars($op['stamp']) . ']</span>' : '')
+                   . ($op['stamp'] ? '<span class="stamp">' . htmlspecialchars($op['stamp']) . '</span>' : '')
                    . '</span>' . ($op['cert'] ? $dlicon : '');
             if ($op['cert']): ?>
       <a class="op" data-s="<?= $s ?>" href="?dl=<?= rawurlencode($op['cert']) ?>" title="Baixar certificado de <?= htmlspecialchars($op['call']) ?>"><?= $inner ?></a>
