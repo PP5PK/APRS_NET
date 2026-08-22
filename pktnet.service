@@ -15,12 +15,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-# ProtectSystem=strict makes the whole filesystem read-only to the service
-# except the paths below. /var/lib/pktnet holds the database and certificates.
-# If you set [cert] publish_dir to expose certificates to a website, add that
-# folder here too (the leading '-' makes systemd ignore it if it is absent),
-# and make sure the pktnet user can write to it.
-ReadWritePaths=/var/lib/pktnet -/var/www/html/cloud/aprsnet_certs
+ReadWritePaths=/var/lib/pktnet
 
 [Install]
 WantedBy=multi-user.target

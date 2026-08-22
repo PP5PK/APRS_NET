@@ -41,7 +41,7 @@ paused_text  = PKTNET under maintenance, try again in a few minutes.
 # (matched by base call, SSID ignored). Leave empty to disable admin commands.
 #   Public (anyone): STATUS, LAST, TIME, ME, RESEND, HELP
 #   Admin  (below):  USERS, START, STOP, PAUSE, RESTART
-admin_calls = PP5MFA PP5PK
+admin_calls = PP5MFA
 # Callsigns to never respond to (automated APRS services), to avoid message
 # loops. Space/comma separated.
 ignore_calls = QRX ANSRVR WLNK-1
@@ -95,11 +95,6 @@ flow_timeout_min = 15
 # still expires after flow_timeout_min. Operators can also send RESET to
 # restart the data collection at any time.
 resend_min = 5
-# Optional: when a certificate is generated, also expose it (by symlink) in
-# this folder, so a website on the same server can list it automatically.
-# Leave empty to disable. The web server user must be able to read the target
-# files under 'dir' above.
-# publish_dir = /var/www/html/cloud/aprsnet_certs
 
 [email]
 # Email delivery of certificates over SMTP (e.g. Brevo). Off until enabled.
