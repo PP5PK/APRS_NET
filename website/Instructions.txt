@@ -1,16 +1,13 @@
-Criar o link dos certificados na pasta do site:
-ln -sf /var/lib/pktnet/certs/PKTNET_ev*_*.pdf /var/www/html/cloud/aprsnet_certs/
-
-Ajustar a permissão de acesso aos certificados:
-chown pktnet:www-data /var/www/html/cloud/aprsnet_certs
-schmod 2775 /var/www/html/cloud/aprsnet_certs   # 2 = setgid: arquivos novos herdam o grupo
-
+Let the group read the bot data, and add www-data to the pktnet group
+sudo chmod -R g+rX /var/lib/pktnet
+sudo usermod -aG pktnet www-data
+sudo systemctl restart apache2
 _________________________________________________________________________
 
-Comandos auxiliares:
-Contar a quantidade de arquivos na pasta:
+Auxiliary commands:
+Count the number of files in the folder.:
 find /var/lib/pktnet/certs/*.pdf -maxdepth 1 -type f | wc -l
 
-Copia arquivos remotamente:
+Copy files remotely:
 rsync -avPe "ssh -i ~/.ssh/whrebe -p 17478" /var/lib/pktnet/certs/*.pdf root@dvbr.net:/var/www/html/cloud/aprsnet_certs/
 rsync -avPe "ssh -i ~/.ssh/whrebe -p 17478" root@dvbr.net:/var/www/ ./
