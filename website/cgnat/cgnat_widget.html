@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teste de Conexao — CGNAT · PP5PK</title>
+<link rel="icon" type="image/svg+xml" href="https://pp5pk.net/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Share+Tech+Mono&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{ margin:0; min-height:100vh; display:grid; place-items:center; background:#080c12; padding:24px; }
+
+.cgnat-widget{
+  --bg:#0b1016; --surface:#121a24; --surface-2:#0e151d; --border:#1f2d3d;
+  --text:#e6edf3; --muted:#8aa0b4;
+  --blue:#3aa0ff; --blue-dim:#16415f; --blue-glow:rgba(58,160,255,.18);
+  --amber:#ffb020; --amber-dim:#5e4310; --amber-glow:rgba(255,176,32,.16);
+  --mono:"Share Tech Mono", ui-monospace, Menlo, Consolas, monospace;
+  --display:"Orbitron", var(--mono);
+  --body:"Inter", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  box-sizing:border-box; width:100%; max-width:440px;
+  background:linear-gradient(180deg,var(--surface) 0%,var(--surface-2) 100%);
+  border:1px solid var(--border); border-radius:14px;
+  color:var(--text); font-family:var(--body); padding:22px 22px 16px;
+  position:relative; overflow:hidden;
+}
+.cgnat-widget *{ box-sizing:border-box; }
+.cgnat-widget .scan{ position:absolute; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg,transparent,var(--blue),transparent);
+  transform:translateX(-100%); opacity:0; }
+.cgnat-widget.testing .scan{ animation:cg-sweep 1.1s linear infinite; opacity:1; }
+@keyframes cg-sweep{ from{transform:translateX(-100%);} to{transform:translateX(100%);} }
+
+.cgnat-widget .top{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.cgnat-widget .eyebrow{ font-family:var(--mono); font-size:12px; letter-spacing:.14em; color:var(--blue); text-transform:uppercase; }
+.cgnat-widget .lang{ display:flex; gap:2px; font-family:var(--mono); font-size:12px; }
+.cgnat-widget .lang button{ background:none; border:1px solid var(--border); color:var(--muted); padding:3px 8px; border-radius:6px; cursor:pointer; line-height:1; }
+.cgnat-widget .lang button[aria-pressed="true"]{ color:var(--text); border-color:var(--blue-dim); background:var(--blue-glow); }
+.cgnat-widget .lang button:focus-visible{ outline:2px solid var(--blue); outline-offset:1px; }
+
+.cgnat-widget h2{ font-family:var(--display); font-weight:700; font-size:22px; line-height:1.15; margin:14px 0 6px; letter-spacing:.01em; }
+.cgnat-widget .sub{ color:var(--muted); font-size:13.5px; line-height:1.5; margin:0 0 18px; }
+
+.cgnat-widget .run{ width:100%; border:none; cursor:pointer; font-family:var(--display); font-weight:500; font-size:14px; letter-spacing:.05em; color:#06121f; background:var(--blue); padding:13px 16px; border-radius:9px; transition:filter .15s ease, transform .05s ease; }
+.cgnat-widget .run:hover{ filter:brightness(1.08); }
+.cgnat-widget .run:active{ transform:translateY(1px); }
+.cgnat-widget .run:disabled{ cursor:wait; filter:saturate(.4) brightness(.8); }
+.cgnat-widget .run:focus-visible{ outline:2px solid var(--text); outline-offset:2px; }
+
+.cgnat-widget .steps{ list-style:none; padding:0; margin:14px 0 0; font-family:var(--mono); font-size:12.5px; color:var(--muted); display:none; }
+.cgnat-widget.testing .steps{ display:block; }
+.cgnat-widget .steps li{ padding:2px 0; opacity:.45; transition:opacity .2s, color .2s; }
+.cgnat-widget .steps li.active{ opacity:1; color:var(--blue); }
+.cgnat-widget .steps li.done{ opacity:.8; color:var(--text); }
+.cgnat-widget .steps li.done::before{ content:"✓ "; color:var(--blue); }
+.cgnat-widget .steps li.active::before{ content:"› "; }
+
+.cgnat-widget .result{ margin-top:16px; display:none; }
+.cgnat-widget .result.show{ display:block; }
+.cgnat-widget .badge{ display:inline-flex; align-items:center; gap:8px; font-family:var(--mono); font-size:13px; font-weight:600; padding:7px 12px; border-radius:8px; border:1px solid; }
+.cgnat-widget .badge .dot{ width:9px; height:9px; border-radius:50%; flex:none; }
+.cgnat-widget .badge.good{ color:var(--blue); border-color:var(--blue-dim); background:var(--blue-glow); }
+.cgnat-widget .badge.good .dot{ background:var(--blue); }
+.cgnat-widget .badge.warn{ color:var(--amber); border-color:var(--amber-dim); background:var(--amber-glow); }
+.cgnat-widget .badge.warn .dot{ background:var(--amber); box-shadow:0 0 0 3px var(--amber-glow); }
+.cgnat-widget .badge.neutral{ color:var(--muted); border-color:var(--border); background:#0e151d; }
+.cgnat-widget .badge.neutral .dot{ background:var(--muted); }
+
+.cgnat-widget .plain{ font-size:14px; line-height:1.55; margin:12px 0 0; }
+.cgnat-widget .srv{ font-family:var(--mono); font-size:11.5px; color:var(--muted); margin:8px 0 0; }
+.cgnat-widget .ipv6{ font-size:12.5px; line-height:1.5; margin:10px 0 0; padding:9px 11px; border-left:2px solid var(--blue-dim); background:var(--blue-glow); border-radius:0 6px 6px 0; color:var(--muted); }
+
+.cgnat-widget details{ margin-top:14px; border-top:1px solid var(--border); padding-top:10px; }
+.cgnat-widget summary{ cursor:pointer; font-family:var(--mono); font-size:12px; color:var(--muted); letter-spacing:.06em; list-style:none; }
+.cgnat-widget summary::-webkit-details-marker{ display:none; }
+.cgnat-widget summary::before{ content:"▸ "; }
+.cgnat-widget details[open] summary::before{ content:"▾ "; }
+.cgnat-widget .tech{ font-family:var(--mono); font-size:12.5px; margin-top:10px; }
+.cgnat-widget .tech .line{ display:flex; justify-content:space-between; gap:12px; padding:3px 0; border-bottom:1px dotted var(--border); }
+.cgnat-widget .tech .k{ color:var(--muted); }
+.cgnat-widget .tech .v{ color:var(--text); text-align:right; word-break:break-all; }
+
+.cgnat-widget .deepcheck{ margin-top:14px; border-top:1px solid var(--border); padding-top:12px; }
+.cgnat-widget .deep-title{ font-family:var(--mono); font-size:12px; color:var(--amber); letter-spacing:.06em; text-transform:uppercase; }
+.cgnat-widget .deep-desc{ font-size:12.5px; color:var(--muted); line-height:1.5; margin:6px 0 8px; }
+.cgnat-widget .cmd{ display:flex; gap:8px; align-items:stretch; }
+.cgnat-widget .cmd code{ flex:1; min-width:0; font-family:var(--mono); font-size:11.5px; color:var(--text); background:var(--surface-2); border:1px solid var(--border); border-radius:7px; padding:9px 10px; overflow-x:auto; white-space:nowrap; }
+.cgnat-widget .cmd button{ flex:none; font-family:var(--mono); font-size:11px; color:var(--blue); background:var(--blue-glow); border:1px solid var(--blue-dim); border-radius:7px; padding:0 12px; cursor:pointer; }
+.cgnat-widget .cmd button:focus-visible{ outline:2px solid var(--blue); outline-offset:1px; }
+
+.cgnat-widget .foot{ margin-top:16px; font-family:var(--mono); font-size:11px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; letter-spacing:.05em; }
+.cgnat-widget .foot a{ color:var(--blue); text-decoration:none; }
+
+@media (prefers-reduced-motion: reduce){
+  .cgnat-widget.testing .scan{ animation:none; opacity:.5; transform:none; }
+  .cgnat-widget .run{ transition:none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ====== COPY FROM HERE TO EMBED IN pp5pk.net ====== -->
+<section class="cgnat-widget" id="cgnatWidget" aria-labelledby="cgTitle">
+  <div class="scan" aria-hidden="true"></div>
+
+  <div class="top">
+    <span class="eyebrow" data-i="eyebrow">// CGNAT</span>
+    <div class="lang" role="group" aria-label="Idioma / Language">
+      <button type="button" data-lang="pt" aria-pressed="true">PT</button>
+      <button type="button" data-lang="en" aria-pressed="false">EN</button>
+    </div>
+  </div>
+
+  <h2 id="cgTitle" data-i="title">Teste de Conexao</h2>
+  <p class="sub" data-i="sub">Descubra se voce tem um IP publico ou esta atras de CGNAT — sem instalar nada.</p>
+
+  <button type="button" class="run" id="cgRun" data-i="run">Testar minha conexao</button>
+
+  <ul class="steps" id="cgSteps" aria-hidden="true">
+    <li data-step="ip" data-i="step_ip">IP publico</li>
+    <li data-step="v6" data-i="step_v6">IPv6</li>
+    <li data-step="stun" data-i="step_stun">Comportamento do NAT (STUN)</li>
+  </ul>
+
+  <div class="result" id="cgResult" aria-live="polite">
+    <span class="badge neutral" id="cgBadge"><span class="dot"></span><span id="cgBadgeText">—</span></span>
+    <p class="plain" id="cgPlain"></p>
+    <p class="srv" id="cgSrv" style="display:none"></p>
+    <p class="ipv6" id="cgIpv6" style="display:none"></p>
+
+    <details id="cgDetails">
+      <summary data-i="details">Detalhes tecnicos</summary>
+      <div class="tech" id="cgTech"></div>
+    </details>
+
+    <div class="deepcheck">
+      <div class="deep-title" data-i="deep_title">Teste definitivo</div>
+      <p class="deep-desc" data-i="deep_desc">Prefere o motor completo? Rode no seu computador (Linux/macOS, Python 3):</p>
+      <div class="cmd">
+        <code id="cgCmd">curl -fsSL https://cgnat.dvbr.net/cgnat_detect.py | python3 -</code>
+        <button type="button" id="cgCopy" data-i="copy">Copiar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span>73 de PP5PK</span>
+    <a href="https://pp5pk.net" data-i="footlink">pp5pk.net</a>
+  </div>
+</section>
+
+<script>
+(function(){
+  "use strict";
+
+  // ===== Configuration ===================================================
+  // Point NAT_API at nat_probe_server. Easiest: reverse-proxy /nat/ to it on
+  // the same host serving this page (no CORS). Or use a full URL, e.g.
+  // "https://dvbr.net:8766/nat" (the server already sends CORS headers).
+  var NAT_API = "/nat";
+  var PUBLIC_STUN = [
+    "stun:stun.l.google.com:19302", "stun:stun.cloudflare.com:3478",
+    "stun:stun.nextcloud.com:443", "stun:stun.sipgate.net:3478"
+  ];
+  var IPV4_URL = "https://api.ipify.org?format=json";
+  var IPV6_URL = "https://api6.ipify.org?format=json";
+
+  var widget = document.getElementById("cgnatWidget");
+  var runBtn = document.getElementById("cgRun");
+  var stepsEl = document.getElementById("cgSteps");
+  var resultEl = document.getElementById("cgResult");
+  var badgeEl = document.getElementById("cgBadge");
+  var badgeText = document.getElementById("cgBadgeText");
+  var plainEl = document.getElementById("cgPlain");
+  var srvEl = document.getElementById("cgSrv");
+  var ipv6El = document.getElementById("cgIpv6");
+  var techEl = document.getElementById("cgTech");
+
+  // ===== i18n ============================================================
+  var I18N = {
+    pt: {
+      eyebrow:"// CGNAT", title:"Teste de Conexao",
+      sub:"Descubra se voce tem um IP publico ou esta atras de CGNAT — sem instalar nada.",
+      run:"Testar minha conexao", running:"Testando…", again:"Testar de novo",
+      details:"Detalhes tecnicos", footlink:"pp5pk.net",
+      deep_title:"Teste definitivo", copy:"Copiar", copied:"Copiado!",
+      deep_desc:"Prefere o motor completo? Rode no seu computador (Linux/macOS, Python 3):",
+      step_ip:"IP publico", step_v6:"IPv6", step_stun:"Comportamento do NAT (STUN)",
+      b_ok:"SEM CGNAT", b_good:"SEM CGNAT APARENTE", b_cone:"INCONCLUSIVO", b_warn:"CGNAT DETECTADO", b_neutral:"INDETERMINADO",
+      p_cone:"Nao detectei CGNAT pelo navegador e seu mapeamento parece estavel (cone). Mas atencao: este teste NAO consegue descartar CGNAT do tipo cone — provedores como a Starlink usam exatamente isso. Para um veredito definitivo (que verifica o traceroute), rode o comando abaixo.",
+      srv_cone:"servidor confirmou mapeamento cone — isso nao descarta CGNAT",
+      p_ok:"Confirmado: voce nao esta atras de CGNAT. Seu mapeamento de rede e estavel e consistente entre servidores — conexoes de entrada sao possiveis (encaminhamento de portas no roteador deve funcionar).",
+      p_soft:"Nao detectamos CGNAT, mas sem o servidor de verificacao nao da para confirmar. Seu mapeamento parece estavel (cone). Para certeza, use o teste definitivo abaixo.",
+      p_cgnat:"Voce esta atras de CGNAT. Seu provedor compartilha um IP publico entre varios clientes. Navegar funciona, mas voce NAO consegue receber conexoes de entrada (abrir portas, hospedar) so com IPv4.",
+      p_undet:"Nao deu para concluir pelo navegador. O WebRTC parece bloqueado (extensao de privacidade, VPN ou politica do navegador). Tente desativar bloqueadores, ou use o teste definitivo abaixo.",
+      v6_yes:"Voce tem IPv6 global. Mesmo atras de CGNAT IPv4, da para hospedar servicos por IPv6 (se o firewall permitir entrada).",
+      v6_no:"Sem IPv6 detectado. Se voce estiver atras de CGNAT, hospedar exigira VPN, tunel (WireGuard/Tailscale) ou um relay.",
+      srv_ok:"✓ verificado com o servidor (dvbr.net)",
+      srv_fb:"servidor de verificacao indisponivel — resultado heuristico",
+      t_v4:"IPv4 publico", t_v6:"IPv6", t_map:"Mapeamento (STUN publico)", t_obs:"Visto pelo servidor", t_beh:"Comportamento NAT",
+      t_yes:"sim", t_no:"nao",
+      beh_sym:"simetrico (assinatura de CGNAT)", beh_cone:"cone (estavel)", beh_cone_u:"cone (nao confirmado)",
+      beh_cgnat:"dentro de 100.64/10", beh_none:"sem resposta (WebRTC bloqueado)", none:"—"
+    },
+    en: {
+      eyebrow:"// CGNAT", title:"Connection Test",
+      sub:"Find out whether you have a public IP or sit behind CGNAT — nothing to install.",
+      run:"Test my connection", running:"Testing…", again:"Test again",
+      details:"Technical details", footlink:"pp5pk.net",
+      deep_title:"Definitive test", copy:"Copy", copied:"Copied!",
+      deep_desc:"Prefer the full engine? Run this on your computer (Linux/macOS, Python 3):",
+      step_ip:"Public IP", step_v6:"IPv6", step_stun:"NAT behaviour (STUN)",
+      b_ok:"NO CGNAT", b_good:"NO CGNAT DETECTED", b_cone:"INCONCLUSIVE", b_warn:"CGNAT DETECTED", b_neutral:"UNDETERMINED",
+      p_cone:"No CGNAT detected from the browser and your mapping looks stable (cone). But heads-up: this test CANNOT rule out cone-type CGNAT — ISPs like Starlink use exactly that. For a definitive verdict (which checks traceroute), run the command below.",
+      srv_cone:"server confirmed a cone mapping — this does not rule out CGNAT",
+      p_ok:"Confirmed: you are not behind CGNAT. Your network mapping is stable and consistent across servers — inbound connections are possible (router port forwarding should work).",
+      p_soft:"No CGNAT detected, but without the verification server it can't be confirmed. Your mapping looks stable (cone). For certainty, use the definitive test below.",
+      p_cgnat:"You are behind CGNAT. Your ISP shares one public IP across many customers. Browsing works, but you CANNOT accept inbound connections (open ports, host) over IPv4 alone.",
+      p_undet:"The browser could not conclude. WebRTC appears blocked (privacy extension, VPN, or browser policy). Try disabling blockers, or use the definitive test below.",
+      v6_yes:"You have global IPv6. Even behind IPv4 CGNAT you can host services over IPv6 (if your firewall allows inbound).",
+      v6_no:"No IPv6 detected. If you are behind CGNAT, hosting will need a VPN, tunnel (WireGuard/Tailscale), or a relay.",
+      srv_ok:"✓ verified with server (dvbr.net)",
+      srv_fb:"verification server unavailable — heuristic result",
+      t_v4:"Public IPv4", t_v6:"IPv6", t_map:"Mapping (public STUN)", t_obs:"Seen by server", t_beh:"NAT behaviour",
+      t_yes:"yes", t_no:"no",
+      beh_sym:"symmetric (CGNAT signature)", beh_cone:"cone (stable)", beh_cone_u:"cone (unconfirmed)",
+      beh_cgnat:"inside 100.64/10", beh_none:"no response (WebRTC blocked)", none:"—"
+    }
+  };
+
+  var lang = (navigator.language || "en").toLowerCase().indexOf("pt") === 0 ? "pt" : "en";
+  try { var sv = localStorage.getItem("cgnat_lang"); if (sv === "pt" || sv === "en") lang = sv; } catch(e){}
+  var last = null;
+  function t(k){ return I18N[lang][k]; }
+
+  function applyStaticI18n(){
+    document.documentElement.lang = (lang === "pt") ? "pt-BR" : "en";
+    widget.querySelectorAll("[data-i]").forEach(function(el){
+      var k = el.getAttribute("data-i");
+      if (I18N[lang][k] != null) el.textContent = I18N[lang][k];
+    });
+    widget.querySelectorAll(".lang button").forEach(function(b){
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-lang") === lang));
+    });
+    if (!widget.classList.contains("testing")) runBtn.textContent = last ? t("again") : t("run");
+    if (last) render(last);
+  }
+
+  widget.querySelectorAll(".lang button").forEach(function(b){
+    b.addEventListener("click", function(){
+      lang = b.getAttribute("data-lang");
+      try { localStorage.setItem("cgnat_lang", lang); } catch(e){}
+      applyStaticI18n();
+    });
+  });
+
+  // ===== helpers =========================================================
+  function isCgnat(ip){
+    if (!ip) return false;
+    var p = ip.split("."); if (p.length !== 4) return false;
+    var a = +p[0], b = +p[1]; return a === 100 && b >= 64 && b <= 127;
+  }
+  function fetchJSON(url, ms){
+    return new Promise(function(resolve){
+      var ctrl = ("AbortController" in window) ? new AbortController() : null;
+      var to = setTimeout(function(){ if (ctrl) ctrl.abort(); resolve(null); }, ms);
+      fetch(url, ctrl ? { signal: ctrl.signal } : {})
+        .then(function(r){ return r.json(); })
+        .then(function(j){ clearTimeout(to); resolve(j); })
+        .catch(function(){ clearTimeout(to); resolve(null); });
+    });
+  }
+  function postJSON(url, obj, ms){
+    return new Promise(function(resolve){
+      var ctrl = ("AbortController" in window) ? new AbortController() : null;
+      var to = setTimeout(function(){ if (ctrl) ctrl.abort(); resolve(null); }, ms || 6000);
+      fetch(url, { method:"POST", headers:{"Content-Type":"application/json"},
+                   body:JSON.stringify(obj), signal: ctrl ? ctrl.signal : undefined })
+        .then(function(r){ return r.json(); })
+        .then(function(j){ clearTimeout(to); resolve(j); })
+        .catch(function(){ clearTimeout(to); console.warn("[cgnat] post failed:", url); resolve(null); });
+    });
+  }
+  function parseCandidate(str){
+    var parts = str.split(" ");
+    var ti = parts.indexOf("typ");
+    if (ti === -1 || parts.length < 6) return null;
+    return { type: parts[ti+1], ip: parts[4], port: parts[5] };
+  }
+  function gatherSrflx(iceUrls, timeoutMs){
+    return new Promise(function(resolve){
+      var found = [], pc, settled = false;
+      function finish(){ if (settled) return; settled = true; try{ pc.close(); }catch(e){} resolve(found); }
+      if (!("RTCPeerConnection" in window)) { resolve(found); return; }
+      try { pc = new RTCPeerConnection({ iceServers: iceUrls.map(function(u){ return { urls: u }; }) }); }
+      catch(e){ resolve(found); return; }
+      try { pc.createDataChannel("probe"); } catch(e){}
+      pc.onicecandidate = function(e){
+        if (!e.candidate){ finish(); return; }
+        var c = parseCandidate(e.candidate.candidate || "");
+        if (c && c.type === "srflx" && c.ip.indexOf(":") === -1){
+          var key = c.ip + ":" + c.port;
+          if (!found.some(function(f){ return f.ip + ":" + f.port === key; })) found.push(c);
+        }
+      };
+      pc.createOffer().then(function(o){ return pc.setLocalDescription(o); }).catch(finish);
+      setTimeout(finish, timeoutMs);
+    });
+  }
+  // Local heuristic, used only when the verification server is unreachable.
+  function classifyLocal(srflx, publicV4){
+    var distinct = {};
+    srflx.forEach(function(s){ distinct[s.ip + ":" + s.port] = 1; });
+    var n = Object.keys(distinct).length;
+    var cgnatIP = srflx.some(function(s){ return isCgnat(s.ip); }) || isCgnat(publicV4);
+    if (cgnatIP) return { code:"cgnat", behavior:"cgnat", server:false };
+    if (n >= 2) return { code:"cgnat", behavior:"symmetric", server:false };
+    if (n === 1) return { code:"soft", behavior:"cone_u", server:false };
+    return { code:"undetermined", behavior:"none", server:false };
+  }
+
+  function setStep(name, state){
+    var li = stepsEl.querySelector('[data-step="'+name+'"]');
+    if (!li) return; li.classList.remove("active","done"); if (state) li.classList.add(state);
+  }
+
+  // ===== run =============================================================
+  async function runTest(){
+    widget.classList.add("testing");
+    resultEl.classList.remove("show");
+    runBtn.disabled = true; runBtn.textContent = t("running");
+    stepsEl.setAttribute("aria-hidden","false");
+    ["ip","v6","stun"].forEach(function(s){ setStep(s, null); });
+
+    setStep("ip","active");
+    var v4 = await fetchJSON(IPV4_URL, 6000);
+    var publicV4 = v4 && v4.ip ? v4.ip : null;
+    setStep("ip","done");
+
+    setStep("v6","active");
+    var v6 = await fetchJSON(IPV6_URL, 6000);
+    var hasV6 = !!(v6 && v6.ip && v6.ip.indexOf(":") !== -1);
+    setStep("v6","done");
+
+    setStep("stun","active");
+    var cfg = await fetchJSON(NAT_API + "/config", 4000);          // is the server up?
+    var iceUrls = (cfg && cfg.stun ? cfg.stun : []).concat(
+                   cfg && cfg.public_stun ? cfg.public_stun : PUBLIC_STUN);
+    var srflx = await gatherSrflx(iceUrls, 4500);
+
+    var verdict = null, observed = null;
+    if (cfg){
+      var rep = await postJSON(NAT_API + "/report", { srflx: srflx });
+      if (rep && rep.verdict){
+        verdict = { code: rep.verdict, behavior: rep.behavior, server: true };
+        observed = rep.observed || null;
+      }
+    }
+    if (!verdict) verdict = classifyLocal(srflx, publicV4);        // fallback
+    setStep("stun","done");
+
+    last = { verdict: verdict, publicV4: publicV4, hasV6: hasV6,
+             v6addr: hasV6 ? v6.ip : null, srflx: srflx, observed: observed };
+
+    widget.classList.remove("testing");
+    stepsEl.setAttribute("aria-hidden","true");
+    runBtn.disabled = false; runBtn.textContent = t("again");
+    render(last);
+    try { console.log("[cgnat] result:", JSON.parse(JSON.stringify(last))); } catch(e){}
+  }
+
+  // ===== render ==========================================================
+  // A cone mapping does NOT rule out CGNAT: carrier NATs like Starlink are
+  // cone (endpoint-independent), so they look identical to a public cone IP
+  // over STUN. The browser cannot see the 100.64 hop, so a cone result is
+  // INCONCLUSIVE here, never a clear pass. Only a 100.64 mapping or a symmetric
+  // mapping let the widget assert CGNAT.
+  var MAP = {
+    cgnat:        { cls:"warn",    b:"b_warn", p:"p_cgnat" },
+    reachable:    { cls:"neutral", b:"b_cone", p:"p_cone" },
+    cone:         { cls:"neutral", b:"b_cone", p:"p_cone" },
+    soft:         { cls:"neutral", b:"b_cone", p:"p_cone" },
+    inconclusive: { cls:"neutral", b:"b_cone", p:"p_cone" },
+    undetermined: { cls:"neutral", b:"b_neutral", p:"p_undet" }
+  };
+
+  function render(r){
+    var v = r.verdict, m = MAP[v.code] || MAP.undetermined;
+    badgeEl.className = "badge " + m.cls;
+    badgeText.textContent = t(m.b);
+    plainEl.textContent = t(m.p);
+
+    srvEl.style.display = "block";
+    if (!v.server) srvEl.textContent = t("srv_fb");
+    else srvEl.textContent = (v.code === "cgnat") ? t("srv_ok") : t("srv_cone");
+
+    ipv6El.style.display = "block";
+    ipv6El.textContent = r.hasV6 ? t("v6_yes") : t("v6_no");
+
+    var mapping = r.srflx.length
+      ? r.srflx.map(function(s){ return s.ip + ":" + s.port; }).join("  ") : t("none");
+    var behName = { symmetric:t("beh_sym"), cone:t("beh_cone"), cone_u:t("beh_cone_u"),
+                    cone_unconfirmed:t("beh_cone_u"), cgnat:t("beh_cgnat"), none:t("beh_none") }[v.behavior] || t("none");
+    var rows = [[t("t_v4"), r.publicV4 || t("none")],
+                [t("t_v6"), r.hasV6 ? (r.v6addr || t("t_yes")) : t("t_no")],
+                [t("t_map"), mapping]];
+    if (r.observed) rows.push([t("t_obs"), r.observed.ip + ":" + r.observed.port]);
+    rows.push([t("t_beh"), behName]);
+
+    techEl.innerHTML = "";
+    rows.forEach(function(row){
+      var d = document.createElement("div"); d.className = "line";
+      var k = document.createElement("span"); k.className = "k"; k.textContent = row[0];
+      var val = document.createElement("span"); val.className = "v"; val.textContent = row[1];
+      d.appendChild(k); d.appendChild(val); techEl.appendChild(d);
+    });
+    resultEl.classList.add("show");
+  }
+
+  // ===== copy button =====================================================
+  var copyBtn = document.getElementById("cgCopy");
+  var cmdEl = document.getElementById("cgCmd");
+  function fallbackCopy(txt){
+    var ta = document.createElement("textarea"); ta.value = txt;
+    ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); } catch(e){}
+    document.body.removeChild(ta);
+  }
+  if (copyBtn) copyBtn.addEventListener("click", function(){
+    var txt = cmdEl.textContent.trim();
+    function flash(){ copyBtn.textContent = t("copied"); setTimeout(function(){ copyBtn.textContent = t("copy"); }, 1500); }
+    if (navigator.clipboard && navigator.clipboard.writeText)
+      navigator.clipboard.writeText(txt).then(flash).catch(function(){ fallbackCopy(txt); flash(); });
+    else { fallbackCopy(txt); flash(); }
+  });
+
+  runBtn.addEventListener("click", runTest);
+  applyStaticI18n();
+})();
+</script>
+<!-- ====== COPY TO HERE ====== -->
+
+</body>
+</html>
