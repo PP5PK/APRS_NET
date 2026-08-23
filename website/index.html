@@ -82,6 +82,13 @@
     @media (max-width: 600px) { .nav-links { display: none; } }
 
     /* THEME TOGGLE */
+    #lang-toggle {
+      background: none; border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 6px 9px; cursor: pointer; color: var(--text-muted);
+      font-family: var(--font-mono); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em;
+      transition: border-color var(--transition), color var(--transition);
+    }
+    #lang-toggle:hover { border-color: var(--primary); color: var(--primary); }
     #theme-toggle {
       background: none; border: 1px solid var(--border); border-radius: var(--radius);
       padding: 6px 10px; cursor: pointer; color: var(--text-muted); font-size: 1rem;
@@ -326,13 +333,16 @@
   <nav>
     <a class="nav-call" href="#hero"><span>PP5</span>PK</a>
     <ul class="nav-links">
-      <li><a href="#sobre">Sobre</a></li>
-      <li><a href="#ferramentas">Ferramentas</a></li>
+      <li><a href="#sobre" data-i18n="nav.about">Sobre</a></li>
+      <li><a href="#ferramentas" data-i18n="nav.tools">Ferramentas</a></li>
       <li><a href="#pktnet">PKTNET</a></li>
-      <li><a href="#projetos">Projetos</a></li>
+      <li><a href="#projetos" data-i18n="nav.projects">Projetos</a></li>
       <li><a href="#radioamadorismo">Ham Radio</a></li>
-      <li><a href="#contato">Contato</a></li>
+      <li><a href="#contato" data-i18n="nav.contact">Contato</a></li>
     </ul>
+    <button id="lang-toggle" aria-label="Language / Idioma">
+      <span id="lang-label"></span>
+    </button>
     <button id="theme-toggle" aria-label="Alternar tema">
       <span id="theme-icon"></span>
       <span class="label" id="theme-label"></span>
@@ -343,11 +353,11 @@
 
     <!-- HERO -->
     <section id="hero">
-      <div class="hero-badge">Radioamador Brasileiro &middot; Mafra&ndash;SC</div>
+      <div class="hero-badge" data-i18n="hero.badge">Radioamador Brasileiro &middot; Mafra&ndash;SC</div>
       <h1 class="hero-callsign">
         <span class="prefix">PP5</span><span class="suffix">PK</span>
       </h1>
-      <p class="hero-sub">
+      <p class="hero-sub" data-i18n="hero.sub">
         <strong>Daniel Kondlatsch</strong> &mdash; radioamador, desenvolvedor e entusiasta
         de infraestrutura de voz digital. Mantendo sistemas para a comunidade ham
         desde o norte de Santa Catarina.
@@ -369,9 +379,9 @@
       <div class="hero-cta">
         <a href="#ferramentas" class="btn btn-primary">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-          Ferramentas
+          <span data-i18n="hero.cta1">Ferramentas</span>
         </a>
-        <a href="#sobre" class="btn btn-outline">Sobre mim</a>
+        <a href="#sobre" class="btn btn-outline" data-i18n="hero.cta2">Sobre mim</a>
       </div>
     </section>
 
@@ -380,36 +390,36 @@
     <!-- SOBRE -->
     <section id="sobre">
       <p class="section-tag">// 001</p>
-      <h2 class="section-title">Sobre mim</h2>
+      <h2 class="section-title" data-i18n="about.title">Sobre mim</h2>
       <div class="about-intro">
         <div class="about-text">
-          <p>Sou <strong>Daniel, PP5PK</strong> &mdash; operador de radio amador, perfeccionista obstinado e entendido de tecnologia. Atuo com radioamadorismo digital focado em <strong>D-Star, YSF, APRS e Refletores XLX</strong>, e mantenho uma infraestrutura propria de servidores para a comunidade.</p>
-          <p>Tenho experiencia em administracao Linux, scripting Bash e Python e desenvolvimento web, combinando essas habilidades para criar e manter ferramentas praticas para radioamadores &mdash; desde dashboards de refletores ate gerenciadores de listas de repetidoras.</p>
-          <p>Apaixonado por motores, carros e armas, defensor ANCAP e de direita. Baseado em <strong>Santa Catarina</strong>, sempre em busca de novos QSOs e projetos que unam tecnologia e radioamadorismo.</p>
+          <p data-i18n="about.p1">Sou <strong>Daniel, PP5PK</strong> &mdash; operador de radio amador, perfeccionista obstinado e entendido de tecnologia. Atuo com radioamadorismo digital focado em <strong>D-Star, YSF, APRS e Refletores XLX</strong>, e mantenho uma infraestrutura propria de servidores para a comunidade.</p>
+          <p data-i18n="about.p2">Tenho experiencia em administracao Linux, scripting Bash e Python e desenvolvimento web, combinando essas habilidades para criar e manter ferramentas praticas para radioamadores &mdash; desde dashboards de refletores ate gerenciadores de listas de repetidoras.</p>
+          <p data-i18n="about.p3">Apaixonado por motores, carros e armas, defensor ANCAP e de direita. Baseado em <strong>Santa Catarina</strong>, sempre em busca de novos QSOs e projetos que unam tecnologia e radioamadorismo.</p>
         </div>
         <div class="about-stats">
           <div class="stat-card">
             <div class="stat-value">APRS</div>
-            <div class="stat-label">iGate &middot; Digipeater ativo</div>
+            <div class="stat-label" data-i18n="stat.aprs">iGate &middot; Digipeater ativo</div>
           </div>
           <div class="stat-card">
             <div class="stat-value">XLX</div>
-            <div class="stat-label">Refletores multimodo / multiprotocolo</div>
+            <div class="stat-label" data-i18n="stat.xlx">Refletores multimodo / multiprotocolo</div>
           </div>
           <div class="stat-card">
             <div class="stat-value">FRN</div>
-            <div class="stat-label">Unico servidor nas Americas</div>
+            <div class="stat-label" data-i18n="stat.frn">Unico servidor nas Americas</div>
           </div>
           <div class="stat-card">
             <div class="stat-value">YSF</div>
-            <div class="stat-label">Refletores C4FM</div>
+            <div class="stat-label" data-i18n="stat.ysf">Refletores C4FM</div>
           </div>
         </div>
       </div>
 
       <div class="bio-accordion">
         <button class="bio-toggle" onclick="toggleBio()">
-          <span>Biografia completa</span>
+          <span data-i18n="bio.toggle">Biografia completa</span>
           <span class="bio-toggle-icon" id="bio-icon">&#9660;</span>
         </button>
         <div class="bio-body" id="bio-body">
@@ -476,8 +486,8 @@
     <!-- FERRAMENTAS -->
     <section id="ferramentas">
       <p class="section-tag">// 002</p>
-      <h2 class="section-title">Ferramentas &amp; Servicos</h2>
-      <p class="section-desc">Recursos mantidos neste servidor, disponiveis para a comunidade de radioamadores.</p>
+      <h2 class="section-title" data-i18n="tools.title">Ferramentas &amp; Servicos</h2>
+      <p class="section-desc" data-i18n="tools.desc">Recursos mantidos neste servidor, disponiveis para a comunidade de radioamadores.</p>
       <div class="tools-grid">
 
         <a href="https://xlxbra.net" target="_blank" rel="noopener" class="tool-card">
@@ -485,9 +495,9 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4M3.5 3.5a14 14 0 0 0 0 17M20.5 3.5a14 14 0 0 1 0 17"/></svg>
           </div>
           <div class="tool-name">XLX Dashboard &middot; XLXBRA</div>
-          <div class="tool-desc">Painel do Refletor XLXBRA &mdash; modulos ativos, usuarios conectados e trafego em tempo real.</div>
+          <div class="tool-desc" data-i18n="tool.xlx">Painel do Refletor XLXBRA &mdash; modulos ativos, usuarios conectados e trafego em tempo real.</div>
           <div class="tool-url">xlxbra.net</div>
-          <div class="tool-arrow">Acessar &rarr;</div>
+          <div class="tool-arrow" data-i18n="arrow.open">Acessar &rarr;</div>
         </a>
 
         <a href="https://dvbr.net" target="_blank" rel="noopener" class="tool-card">
@@ -495,9 +505,9 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h4M18 12h4M12 2v4M12 18v4"/><circle cx="12" cy="12" r="4"/><path d="M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M19.07 4.93l-2.83 2.83M7.76 16.24l-2.83 2.83"/></svg>
           </div>
           <div class="tool-name">YSF Dashboard &middot; 77777</div>
-          <div class="tool-desc">Painel do Refletor YSF 77777 BR-BRAZIL &mdash; o mais movimentado do Brasil. Salas, operadores e historico de QSOs.</div>
+          <div class="tool-desc" data-i18n="tool.ysf">Painel do Refletor YSF 77777 BR-BRAZIL &mdash; o mais movimentado do Brasil. Salas, operadores e historico de QSOs.</div>
           <div class="tool-url">dvbr.net</div>
-          <div class="tool-arrow">Acessar &rarr;</div>
+          <div class="tool-arrow" data-i18n="arrow.open">Acessar &rarr;</div>
         </a>
 
         <a href="https://aprs.dvbr.net" target="_blank" rel="noopener" class="tool-card">
@@ -505,9 +515,9 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           </div>
           <div class="tool-name">APRS Passcode</div>
-          <div class="tool-desc">Gerador de senhas para estacoes APRS. Digite seu indicativo e obtenha o passcode instantaneamente.</div>
+          <div class="tool-desc" data-i18n="tool.passcode">Gerador de senhas para estacoes APRS. Digite seu indicativo e obtenha o passcode instantaneamente.</div>
           <div class="tool-url">aprs.dvbr.net</div>
-          <div class="tool-arrow">Acessar &rarr;</div>
+          <div class="tool-arrow" data-i18n="arrow.open">Acessar &rarr;</div>
         </a>
 
         <a href="https://cloud.dvbr.net" target="_blank" rel="noopener" class="tool-card">
@@ -515,9 +525,9 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
           </div>
           <div class="tool-name">Arquivos Publicos</div>
-          <div class="tool-desc">Diretorio publico de arquivos compartilhados &mdash; firmwares, configuracoes, documentos e utilitarios.</div>
+          <div class="tool-desc" data-i18n="tool.cloud">Diretorio publico de arquivos compartilhados &mdash; firmwares, configuracoes, documentos e utilitarios.</div>
           <div class="tool-url">cloud.dvbr.net</div>
-          <div class="tool-arrow">Acessar &rarr;</div>
+          <div class="tool-arrow" data-i18n="arrow.open">Acessar &rarr;</div>
         </a>
 
         <a href="https://cgnat.dvbr.net/cgnat_widget.html" target="_blank" rel="noopener" class="tool-card">
@@ -525,9 +535,9 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
           </div>
           <div class="tool-name">Teste de Conexao &middot; CGNAT</div>
-          <div class="tool-desc">Descubra em segundos se voce tem um IP publico ou esta atras de CGNAT &mdash; util para hospedar servicos e abrir portas.</div>
+          <div class="tool-desc" data-i18n="tool.cgnat">Descubra em segundos se voce tem um IP publico ou esta atras de CGNAT &mdash; util para hospedar servicos e abrir portas.</div>
           <div class="tool-url">cgnat.dvbr.net</div>
-          <div class="tool-arrow">Acessar &rarr;</div>
+          <div class="tool-arrow" data-i18n="arrow.open">Acessar &rarr;</div>
         </a>
 
       </div>
@@ -539,7 +549,7 @@
     <section id="pktnet">
       <p class="section-tag">// 003</p>
       <h2 class="section-title">APRS PKTNET</h2>
-      <p class="section-desc">Nossa Net de APRS por mensagens. Envie
+      <p class="section-desc" data-i18n="pktnet.desc">Nossa Net de APRS por mensagens. Envie
         <strong>CHECK</strong> para <strong>PKTNET</strong> e receba seu
         certificado de participa&ccedil;&atilde;o em PDF. H&aacute; tamb&eacute;m
         uma sala de bate-papo em grupo &mdash; entre com <strong>JOIN</strong>
@@ -551,29 +561,29 @@
           <div class="tool-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
           </div>
-          <div class="tool-name">Como participar</div>
-          <div class="pktnet-steps">
+          <div class="tool-name" data-i18n="pktnet.how">Como participar</div>
+          <div class="pktnet-steps" data-i18n="pktnet.steps">
             1. Envie <code>CHECK</code> para <code>PKTNET</code> via APRS.<br />
             2. Informe seu e-mail quando solicitado.<br />
             3. Receba seu certificado em PDF.<br />
             <br />
             Dica: envie <code>HELP</code> em qualquer Net para ver os comandos.
           </div>
-          <div class="tool-arrow" style="color:var(--accent)">Certificado garantido para todos</div>
+          <div class="tool-arrow" style="color:var(--accent)" data-i18n="pktnet.guarantee">Certificado garantido para todos</div>
         </div>
 
         <div class="tool-card" style="cursor:default">
           <div class="tool-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
           </div>
-          <div class="tool-name">Comandos &middot; PKTNET</div>
+          <div class="tool-name" data-i18n="pktnet.cmds">Comandos &middot; PKTNET</div>
           <div class="cmd-list">
-            <div><code>STATUS</code><span>nome da Net + qtd. de usu&aacute;rios</span></div>
-            <div><code>LAST</code><span>&uacute;ltimos 5 check-ins</span></div>
-            <div><code>TIME</code><span>tempo restante</span></div>
-            <div><code>ME</code><span>suas participa&ccedil;&otilde;es + &uacute;ltimo CHECK</span></div>
-            <div><code>RESEND</code><span>reenvia o certificado</span></div>
-            <div><code>RESET</code><span>reinicia o processo</span></div>
+            <div><code>STATUS</code><span data-i18n="cmd.status">nome da Net + qtd. de usu&aacute;rios</span></div>
+            <div><code>LAST</code><span data-i18n="cmd.last">&uacute;ltimos 5 check-ins</span></div>
+            <div><code>TIME</code><span data-i18n="cmd.time">tempo restante</span></div>
+            <div><code>ME</code><span data-i18n="cmd.me">suas participa&ccedil;&otilde;es + &uacute;ltimo CHECK</span></div>
+            <div><code>RESEND</code><span data-i18n="cmd.resend">reenvia o certificado</span></div>
+            <div><code>RESET</code><span data-i18n="cmd.reset">reinicia o processo</span></div>
           </div>
         </div>
 
@@ -581,13 +591,13 @@
           <div class="tool-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           </div>
-          <div class="tool-name">Sala de chat &middot; PKTQSO</div>
+          <div class="tool-name" data-i18n="pktnet.room">Sala de chat &middot; PKTQSO</div>
           <div class="cmd-list">
-            <div><code>JOIN</code><span>entrar na sala</span></div>
-            <div><code>LEAVE / QRT</code><span>sair da sala</span></div>
-            <div><code>WHO</code><span>lista de participantes</span></div>
+            <div><code>JOIN</code><span data-i18n="room.join">entrar na sala</span></div>
+            <div><code>LEAVE</code><span data-i18n="room.leave">sair da sala</span></div>
+            <div><code>WHO</code><span data-i18n="room.who">lista de participantes</span></div>
           </div>
-          <div class="tool-arrow">Envie para PKTQSO &rarr;</div>
+          <div class="tool-arrow" data-i18n="pktnet.sendroom">Envie para &rarr; PKTQSO</div>
         </div>
 
       </div>
@@ -595,7 +605,7 @@
       <div class="pktnet-cta">
         <a href="aprsnet_participants.php" class="btn btn-primary">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          Participantes &amp; certificados
+          <span data-i18n="pktnet.cta">Participantes &amp; certificados</span>
         </a>
       </div>
     </section>
@@ -606,7 +616,7 @@
     <section id="radioamadorismo">
       <p class="section-tag">// 004</p>
       <h2 class="section-title">Ham Radio</h2>
-      <p class="section-desc">Modos, tecnologias e sistemas que opero e mantenho.</p>
+      <p class="section-desc" data-i18n="ham.desc">Modos, tecnologias e sistemas que opero e mantenho.</p>
       <div class="ham-grid">
         <div class="ham-item">
           <div class="ham-item-icon">
@@ -614,7 +624,7 @@
           </div>
           <div>
             <div class="ham-item-title">D-Star / DV</div>
-            <div class="ham-item-desc">Voz digital via Refletores XLX, gateways e radios ICOM.</div>
+            <div class="ham-item-desc" data-i18n="ham.dstar">Voz digital via Refletores XLX, gateways e radios ICOM.</div>
           </div>
         </div>
         <div class="ham-item">
@@ -623,7 +633,7 @@
           </div>
           <div>
             <div class="ham-item-title">APRS</div>
-            <div class="ham-item-desc">Rastreamento de posicao e telemetria via AX.25 &mdash; iGate e Digipeater ativos.</div>
+            <div class="ham-item-desc" data-i18n="ham.aprs">Rastreamento de posicao e telemetria via AX.25 &mdash; iGate e Digipeater ativos.</div>
           </div>
         </div>
         <div class="ham-item">
@@ -632,7 +642,7 @@
           </div>
           <div>
             <div class="ham-item-title">YSF / C4FM</div>
-            <div class="ham-item-desc">Refletor YSF 77777 BR-BRAZIL &mdash; o mais movimentado do Brasil desde 2020.</div>
+            <div class="ham-item-desc" data-i18n="ham.ysf">Refletor YSF 77777 BR-BRAZIL &mdash; o mais movimentado do Brasil desde 2020.</div>
           </div>
         </div>
         <div class="ham-item">
@@ -641,7 +651,7 @@
           </div>
           <div>
             <div class="ham-item-title">HF &middot; FT8 / FT4</div>
-            <div class="ham-item-desc">Yaesu FT-857D + ATAS-120A. Tambem FreeDV, ROSS, VarAC e modos experimentais.</div>
+            <div class="ham-item-desc" data-i18n="ham.hf">Yaesu FT-857D + ATAS-120A. Tambem FreeDV, ROSS, VarAC e modos experimentais.</div>
           </div>
         </div>
         <div class="ham-item">
@@ -649,8 +659,8 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
           </div>
           <div>
-            <div class="ham-item-title">FM / Repetidoras</div>
-            <div class="ham-item-desc">Operacao FM com CTCSS e projeto de repetidora hibrida YSF/D-Star em UHF.</div>
+            <div class="ham-item-title" data-i18n="ham.fmtitle">FM / Repetidoras</div>
+            <div class="ham-item-desc" data-i18n="ham.fm">Operacao FM com CTCSS e projeto de repetidora hibrida YSF/D-Star em UHF.</div>
           </div>
         </div>
         <div class="ham-item">
@@ -658,8 +668,8 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
           </div>
           <div>
-            <div class="ham-item-title">Infraestrutura</div>
-            <div class="ham-item-desc">Servidores Linux, scripts Bash e automacao para sistemas de radioamador.</div>
+            <div class="ham-item-title" data-i18n="ham.infratitle">Infraestrutura</div>
+            <div class="ham-item-desc" data-i18n="ham.infra">Servidores Linux, scripts Bash e automacao para sistemas de radioamador.</div>
           </div>
         </div>
       </div>
@@ -671,7 +681,7 @@
     <section id="projetos">
       <p class="section-tag">// 005</p>
       <h2 class="section-title">Projetos</h2>
-      <p class="section-desc">Projetos open-source publicados no GitHub, voltados para a comunidade de radioamadores.</p>
+      <p class="section-desc" data-i18n="proj.desc">Projetos open-source publicados no GitHub, voltados para a comunidade de radioamadores.</p>
       <div class="tools-grid">
 
         <a href="https://github.com/PP5PK/XLX_Installer" target="_blank" rel="noopener" class="tool-card">
@@ -679,9 +689,9 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
           </div>
           <div class="tool-name">XLX Installer</div>
-          <div class="tool-desc">Script Bash que automatiza a instalacao completa de um Refletor XLX Multiprotocolo/Multimodo com Dashboard integrado e Servidor de Echo-Test.</div>
+          <div class="tool-desc" data-i18n="proj.installer">Script Bash que automatiza a instalacao completa de um Refletor XLX Multiprotocolo/Multimodo com Dashboard integrado e Servidor de Echo-Test.</div>
           <div class="tool-url">Shell &middot; 11 stars</div>
-          <div class="tool-arrow">Ver no GitHub &rarr;</div>
+          <div class="tool-arrow" data-i18n="arrow.github">Ver no GitHub &rarr;</div>
         </a>
 
         <a href="https://github.com/PP5PK/XLX_Dark_Dashboard" target="_blank" rel="noopener" class="tool-card">
@@ -689,9 +699,9 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
           </div>
           <div class="tool-name">XLX Dark Dashboard</div>
-          <div class="tool-desc">Dashboard personalizado com melhorias de UX e tema escuro para Refletores XLX. Base do painel utilizado no XLXBRA.</div>
+          <div class="tool-desc" data-i18n="proj.darkdash">Dashboard personalizado com melhorias de UX e tema escuro para Refletores XLX. Base do painel utilizado no XLXBRA.</div>
           <div class="tool-url">PHP &middot; 3 stars</div>
-          <div class="tool-arrow">Ver no GitHub &rarr;</div>
+          <div class="tool-arrow" data-i18n="arrow.github">Ver no GitHub &rarr;</div>
         </a>
 
         <a href="https://github.com/PP5PK/monitor_XLX" target="_blank" rel="noopener" class="tool-card">
@@ -699,9 +709,9 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </div>
           <div class="tool-name">monitor_XLX</div>
-          <div class="tool-desc">Bot Telegram que monitora um Refletor XLX e envia notificacoes em tempo real de conexao/desconexao de repetidoras e estacoes bloqueadas, com links para o QRZ.com.</div>
+          <div class="tool-desc" data-i18n="proj.monitor">Bot Telegram que monitora um Refletor XLX e envia notificacoes em tempo real de conexao/desconexao de repetidoras e estacoes bloqueadas, com links para o QRZ.com.</div>
           <div class="tool-url">Shell &middot; 2 stars</div>
-          <div class="tool-arrow">Ver no GitHub &rarr;</div>
+          <div class="tool-arrow" data-i18n="arrow.github">Ver no GitHub &rarr;</div>
         </a>
 
         <a href="https://github.com/PP5PK/DR_List_Manager" target="_blank" rel="noopener" class="tool-card">
@@ -709,9 +719,9 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
           </div>
           <div class="tool-name">DR List Manager</div>
-          <div class="tool-desc">Gerenciador interativo Bash para listas de repetidoras no formato CSV do modo DR do ICOM. Valida 17 campos, repara dados corrompidos, suporta tons CTCSS e operacoes CRUD com backup automatico.</div>
+          <div class="tool-desc" data-i18n="proj.drlist">Gerenciador interativo Bash para listas de repetidoras no formato CSV do modo DR do ICOM. Valida 17 campos, repara dados corrompidos, suporta tons CTCSS e operacoes CRUD com backup automatico.</div>
           <div class="tool-url">Shell &middot; 1 star</div>
-          <div class="tool-arrow">Ver no GitHub &rarr;</div>
+          <div class="tool-arrow" data-i18n="arrow.github">Ver no GitHub &rarr;</div>
         </a>
 
         <a href="https://github.com/PP5PK/APRS-IS_Passcode_Generator" target="_blank" rel="noopener" class="tool-card">
@@ -719,9 +729,9 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           </div>
           <div class="tool-name">APRS Passcode Generator</div>
-          <div class="tool-desc">Ferramenta web para gerar passcodes APRS-IS a partir do indicativo. Interface minimalista em HTML/JS puro, sem dependencias. Disponivel tambem em aprs.dvbr.net.</div>
+          <div class="tool-desc" data-i18n="proj.passcode">Ferramenta web para gerar passcodes APRS-IS a partir do indicativo. Interface minimalista em HTML/JS puro, sem dependencias. Disponivel tambem em aprs.dvbr.net.</div>
           <div class="tool-url">HTML &middot; 1 star</div>
-          <div class="tool-arrow">Ver no GitHub &rarr;</div>
+          <div class="tool-arrow" data-i18n="arrow.github">Ver no GitHub &rarr;</div>
         </a>
 
         <a href="https://github.com/PP5PK/Waveshare_e-paper_apps" target="_blank" rel="noopener" class="tool-card">
@@ -729,16 +739,16 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
           </div>
           <div class="tool-name">Waveshare e-Paper Apps</div>
-          <div class="tool-desc">Colecao de apps Python para o display e-Paper 2.13" da Waveshare no Raspberry Pi: monitor de sistema com relogio em tempo real e dashboard do Refletor XLX com ultimas estacoes ouvidas.</div>
+          <div class="tool-desc" data-i18n="proj.epaper">Colecao de apps Python para o display e-Paper 2.13" da Waveshare no Raspberry Pi: monitor de sistema com relogio em tempo real e dashboard do Refletor XLX com ultimas estacoes ouvidas.</div>
           <div class="tool-url">Python &middot; 1 star</div>
-          <div class="tool-arrow">Ver no GitHub &rarr;</div>
+          <div class="tool-arrow" data-i18n="arrow.github">Ver no GitHub &rarr;</div>
         </a>
 
       </div>
       <div style="margin-top:1.5rem;text-align:right;">
         <a href="https://github.com/PP5PK" target="_blank" rel="noopener" class="btn btn-outline">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
-          Ver todos os repositorios no GitHub
+          <span data-i18n="proj.all">Ver todos os repositorios no GitHub</span>
         </a>
       </div>
     </section>
@@ -751,7 +761,7 @@
         <div>
           <p class="section-tag">// 006</p>
           <h2 class="section-title">73 de PP5PK</h2>
-          <p style="color:var(--text-muted);font-size:0.9rem;max-width:380px;">
+          <p style="color:var(--text-muted);font-size:0.9rem;max-width:380px;" data-i18n="contact.intro">
             QRZ, e-mail, Telegram ou WhatsApp &mdash; o canal e voce quem escolhe.
           </p>
         </div>
@@ -762,7 +772,7 @@
           </a>
           <a id="email-link" class="contact-link">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            E-mail
+            <span data-i18n="contact.email">E-mail</span>
           </a>
           <a href="https://t.me/PU5KOD" target="_blank" rel="noopener" class="contact-link">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -783,8 +793,8 @@
   </main>
 
   <footer>
-    <div class="footer-call"><span>PP5PK</span> &middot; Daniel Kondlatsch &middot; Mafra&ndash;SC &middot; Brasil</div>
-    <div class="footer-note">73 &amp; 88 &middot; Feito com &hearts; e muito RF</div>
+    <div class="footer-call" data-i18n="footer.call"><span>PP5PK</span> &middot; Daniel Kondlatsch &middot; Mafra&ndash;SC &middot; Brasil</div>
+    <div class="footer-note" data-i18n="footer.note">73 &amp; 88 &middot; Feito com &hearts; e muito RF</div>
   </footer>
 
   <script>
@@ -825,6 +835,29 @@
       var el = document.getElementById('email-link');
       el.href = 'mailto:' + u + '@' + d;
     })();
+    // ---- i18n (PT/EN) ----
+    var I18N_EN = {"nav.about": "About", "nav.tools": "Tools", "nav.projects": "Projects", "nav.contact": "Contact", "hero.badge": "Brazilian Ham Radio Operator &middot; Mafra&ndash;SC", "hero.sub": "<strong>Daniel Kondlatsch</strong> &mdash; ham radio operator, developer and digital voice infrastructure enthusiast. Running systems for the ham community from northern Santa Catarina, Brazil.", "hero.cta1": "Tools", "hero.cta2": "About me", "about.title": "About me", "about.p1": "I’m <strong>Daniel, PP5PK</strong> &mdash; a ham radio operator, stubborn perfectionist and technology geek. I work with digital ham radio focused on <strong>D-Star, YSF, APRS and XLX Reflectors</strong>, and I run my own server infrastructure for the community.", "about.p2": "I have experience in Linux administration, Bash and Python scripting and web development, combining these skills to build and maintain practical tools for hams &mdash; from reflector dashboards to repeater list managers.", "about.p3": "Passionate about engines, cars and firearms, an ANCAP and right-wing advocate. Based in <strong>Santa Catarina, Brazil</strong>, always after new QSOs and projects that bring together technology and ham radio.", "stat.aprs": "iGate &middot; active Digipeater", "stat.xlx": "Multi-mode / multi-protocol reflectors", "stat.frn": "Only server in the Americas", "stat.ysf": "C4FM reflectors", "bio.toggle": "Full biography", "tools.title": "Tools &amp; Services", "tools.desc": "Resources hosted on this server, available to the ham radio community.", "tool.xlx": "XLXBRA Reflector dashboard &mdash; active modules, connected users and real-time traffic.", "tool.ysf": "YSF 77777 BR-BRAZIL Reflector dashboard &mdash; the busiest in Brazil. Rooms, operators and QSO history.", "tool.passcode": "Passcode generator for APRS stations. Enter your callsign and get the passcode instantly.", "tool.cloud": "Public directory of shared files &mdash; firmwares, configs, documents and utilities.", "tool.cgnat": "Find out in seconds whether you have a public IP or are behind CGNAT &mdash; useful for hosting services and opening ports.", "arrow.open": "Open &rarr;", "pktnet.desc": "Our message-based APRS Net. Send <strong>CHECK</strong> to <strong>PKTNET</strong> and get your participation certificate as a PDF. There is also a group chat room &mdash; join it by sending <strong>JOIN</strong> to <strong>PKTQSO</strong>.", "pktnet.how": "How to take part", "pktnet.steps": "1. Send <code>CHECK</code> to <code>PKTNET</code> via APRS.<br />\n2. Provide your email when asked.<br />\n3. Get your certificate as a PDF.<br />\n<br />\nTip: send <code>HELP</code> in any Net to see the commands.", "pktnet.guarantee": "Certificate guaranteed for everyone", "pktnet.cmds": "Commands &middot; PKTNET", "cmd.status": "Net name + user count", "cmd.last": "last 5 check-ins", "cmd.time": "time remaining", "cmd.me": "your check-ins + last CHECK", "cmd.resend": "resend the certificate", "cmd.reset": "restart the process", "pktnet.room": "Chat room &middot; PKTQSO", "room.join": "join the room", "room.leave": "leave the room", "room.who": "list of participants", "pktnet.sendroom": "Send to &rarr; PKTQSO", "pktnet.cta": "Participants &amp; certificates", "ham.desc": "Modes, technologies and systems I operate and maintain.", "ham.dstar": "Digital voice over XLX Reflectors, gateways and ICOM radios.", "ham.aprs": "Position tracking and telemetry over AX.25 &mdash; active iGate and Digipeater.", "ham.ysf": "YSF 77777 BR-BRAZIL Reflector &mdash; the busiest in Brazil since 2020.", "ham.hf": "Yaesu FT-857D + ATAS-120A. Also FreeDV, ROSS, VarAC and experimental modes.", "ham.fmtitle": "FM / Repeaters", "ham.fm": "FM operation with CTCSS and a hybrid YSF/D-Star UHF repeater project.", "ham.infratitle": "Infrastructure", "ham.infra": "Linux servers, Bash scripts and automation for ham radio systems.", "proj.desc": "Open-source projects published on GitHub, aimed at the ham radio community.", "proj.installer": "Bash script that automates the full install of a multi-protocol/multi-mode XLX Reflector with an integrated Dashboard and Echo-Test server.", "proj.darkdash": "Custom dashboard with UX improvements and a dark theme for XLX Reflectors. Basis of the panel used on XLXBRA.", "proj.monitor": "Telegram bot that monitors an XLX Reflector and sends real-time notifications of repeater connect/disconnect and blocked stations, with links to QRZ.com.", "proj.drlist": "Interactive Bash manager for repeater lists in the ICOM DR-mode CSV format. Validates 17 fields, repairs corrupted data, supports CTCSS tones and CRUD operations with automatic backup.", "proj.passcode": "Web tool to generate APRS-IS passcodes from a callsign. Minimalist interface in pure HTML/JS, no dependencies. Also available at aprs.dvbr.net.", "proj.epaper": "Collection of Python apps for the Waveshare 2.13\" e-Paper display on the Raspberry Pi: a system monitor with a real-time clock and an XLX Reflector dashboard with the last stations heard.", "arrow.github": "View on GitHub &rarr;", "proj.all": "View all repositories on GitHub", "contact.intro": "QRZ, email, Telegram or WhatsApp &mdash; you choose the channel.", "contact.email": "Email", "footer.call": "<span>PP5PK</span> &middot; Daniel Kondlatsch &middot; Mafra&ndash;SC &middot; Brazil", "footer.note": "73 &amp; 88 &middot; Made with &hearts; and lots of RF"};
+    var htmlEl = document.documentElement;
+    var i18nEls = document.querySelectorAll('[data-i18n]');
+    i18nEls.forEach(function (el) { el.dataset.ptHtml = el.innerHTML; });
+    var savedLang = localStorage.getItem('lang') ||
+      ((navigator.language || 'en').toLowerCase().indexOf('pt') === 0 ? 'pt' : 'en');
+    applyLang(savedLang);
+    var langBtn = document.getElementById('lang-toggle');
+    langBtn.addEventListener('click', function () {
+      applyLang(htmlEl.dataset.lang === 'en' ? 'pt' : 'en');
+      localStorage.setItem('lang', htmlEl.dataset.lang);
+    });
+    function applyLang(l) {
+      htmlEl.dataset.lang = l;
+      htmlEl.setAttribute('lang', l === 'en' ? 'en' : 'pt-BR');
+      i18nEls.forEach(function (el) {
+        var k = el.getAttribute('data-i18n');
+        el.innerHTML = (l === 'en' && I18N_EN[k] != null) ? I18N_EN[k] : el.dataset.ptHtml;
+      });
+      document.getElementById('lang-label').textContent = (l === 'en' ? 'PT' : 'EN');
+    }
+
   </script>
 
 </body>

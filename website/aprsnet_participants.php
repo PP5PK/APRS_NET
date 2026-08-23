@@ -124,7 +124,7 @@ try {
 }
 ?>
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="dark">
+<html lang="pt-BR" data-theme="dark" data-lang="pt">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -157,6 +157,11 @@ try {
   .back{font-family:var(--font-mono);font-size:.8rem;color:var(--text-muted);
     display:inline-flex;align-items:center;gap:.4rem;transition:.2s;}
   .back:hover{color:var(--primary);}
+  .top-btns{display:flex;align-items:center;gap:.5rem;}
+  #lang-toggle{background:none;border:1px solid var(--border);border-radius:var(--radius);
+    padding:6px 9px;cursor:pointer;color:var(--text-muted);font-family:var(--font-mono);
+    font-size:.7rem;font-weight:700;letter-spacing:.05em;transition:border-color .2s,color .2s;}
+  #lang-toggle:hover{border-color:var(--primary);color:var(--primary);}
   #theme-toggle{background:none;border:1px solid var(--border);border-radius:var(--radius);
     padding:6px 10px;cursor:pointer;color:var(--text-muted);font-size:1rem;
     transition:border-color .2s,color .2s;display:flex;align-items:center;gap:6px;}
@@ -212,41 +217,50 @@ try {
 <div class="wrap">
   <div class="top">
     <a class="back" href="<?= htmlspecialchars($SITE_URL) ?>">&larr; pp5pk.net</a>
-    <button id="theme-toggle" aria-label="Alternar tema">
-      <span id="theme-icon"></span><span class="label" id="theme-label"></span>
-    </button>
+    <div class="top-btns">
+      <button id="lang-toggle" aria-label="Language / Idioma"><span id="lang-label"></span></button>
+      <button id="theme-toggle" aria-label="Alternar tema">
+        <span id="theme-icon"></span><span class="label" id="theme-label"></span>
+      </button>
+    </div>
   </div>
 
   <p class="tag">// APRS PKTNET</p>
-  <h1>Participantes &amp; <span class="b">Certificados</span></h1>
-  <p class="lede">Todos que fizeram check-in em cada Net. Quem tem certificado
+  <h1 data-en="<?= htmlspecialchars('Participants &amp; <span class=\'b\'>Certificates</span>', ENT_QUOTES) ?>">Participantes &amp; <span class="b">Certificados</span></h1>
+  <p class="lede" data-en="<?= htmlspecialchars('Everyone who checked into each Net. Those with a certificate show the download icon &mdash; click the box to download. Want to take part? Send <code>CHECK</code> to <code>PKTNET</code> via APRS.', ENT_QUOTES) ?>">Todos que fizeram check-in em cada Net. Quem tem certificado
     mostra o &iacute;cone de download &mdash; clique no quadro para baixar. Quer
     participar? Envie <code>CHECK</code> para <code>PKTNET</code> via APRS.</p>
   <?php if (!$err && $total > 0): ?>
   <div class="legend">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-    quadro com este &iacute;cone = certificado dispon&iacute;vel para download
+    <span data-en="box with this icon = certificate available for download">quadro com este &iacute;cone = certificado dispon&iacute;vel para download</span>
   </div>
   <?php endif; ?>
 
   <?php if ($err): ?>
-  <div class="err"><?= htmlspecialchars($err) ?></div>
+  <div class="err" data-en="Could not read the database."><?= htmlspecialchars($err) ?></div>
 
   <?php elseif ($total > 0): ?>
   <div class="search">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-    <input id="q" type="text" placeholder="Buscar indicativo ou nome..." autocomplete="off" spellcheck="false" />
+    <input id="q" type="text" placeholder="Buscar indicativo ou nome..." data-en-ph="Search callsign or name..." autocomplete="off" spellcheck="false" />
   </div>
-  <p class="count"><?= $total ?> check-in<?= $total == 1 ? '' : 's' ?>
-     em <?= count($events) ?> Net<?= count($events) == 1 ? '' : 's' ?>
-     &middot; <?= $withCert ?> com certificado</p>
+  <?php
+    $nE = count($events);
+    $countPt = $total.' check-in'.($total==1?'':'s').' em '.$nE.' Net'.($nE==1?'':'s').' &middot; '.$withCert.' com certificado';
+    $countEn = $total.' check-in'.($total==1?'':'s').' in '.$nE.' Net'.($nE==1?'':'s').' &middot; '.$withCert.' with certificate'.($withCert==1?'':'s');
+  ?>
+  <p class="count" data-en="<?= htmlspecialchars($countEn, ENT_QUOTES) ?>"><?= $countPt ?></p>
 
   <?php foreach ($events as $eid => $ev): ?>
   <section class="net" data-net="<?= $eid ?>">
     <div class="net-head">
       <h2><?= net_label($eid) ?></h2>
-      <span class="sub"><?= fmt_date($ev['date']) ?> &middot; <?= count($ev['rows']) ?> participante<?= count($ev['rows']) == 1 ? '' : 's' ?></span>
-      <?php if ($ev['status'] === 'open'): ?><span class="live">ao vivo</span><?php endif; ?>
+      <?php $np = count($ev['rows']);
+            $subPt = fmt_date($ev['date']).' &middot; '.$np.' participante'.($np==1?'':'s');
+            $subEn = fmt_date($ev['date']).' &middot; '.$np.' participant'.($np==1?'':'s'); ?>
+      <span class="sub" data-en="<?= htmlspecialchars($subEn, ENT_QUOTES) ?>"><?= $subPt ?></span>
+      <?php if ($ev['status'] === 'open'): ?><span class="live" data-en="live">ao vivo</span><?php endif; ?>
     </div>
     <div class="grid">
       <?php $i = 0; foreach ($ev['rows'] as $op): $i++;
@@ -258,7 +272,7 @@ try {
                    . ($op['stamp'] ? '<span class="stamp">' . htmlspecialchars($op['stamp']) . '</span>' : '')
                    . '</span>' . ($op['cert'] ? $dlicon : '');
             if ($op['cert']): ?>
-      <a class="op" data-s="<?= $s ?>" href="?dl=<?= rawurlencode($op['cert']) ?>" title="Baixar certificado de <?= htmlspecialchars($op['call']) ?>"><?= $inner ?></a>
+      <a class="op" data-s="<?= $s ?>" href="?dl=<?= rawurlencode($op['cert']) ?>" title="<?= htmlspecialchars(($op['call'])) ?> certificate"><?= $inner ?></a>
       <?php else: ?>
       <div class="op" data-s="<?= $s ?>"><?= $inner ?></div>
       <?php endif; ?>
@@ -266,10 +280,10 @@ try {
     </div>
   </section>
   <?php endforeach; ?>
-  <p class="no-match" id="noMatch">Nenhum participante encontrado.</p>
+  <p class="no-match" id="noMatch" data-en="No participant found.">Nenhum participante encontrado.</p>
 
   <?php else: ?>
-  <div class="empty">
+  <div class="empty" data-en="<?= htmlspecialchars('<strong>No check-ins registered yet.</strong> Once the first Net happens, participants will show up here.', ENT_QUOTES) ?>">
     <strong>Ainda n&atilde;o h&aacute; check-ins registrados.</strong>
     Assim que a primeira Net acontecer, os participantes aparecer&atilde;o aqui.
   </div>
@@ -313,6 +327,30 @@ try {
       });
       document.getElementById('noMatch').style.display = (term && !anyVisible) ? 'block' : 'none';
     });
+  }
+  // ---- i18n (PT/EN): shares the 'lang' preference with the main site ----
+  var i18nEls = document.querySelectorAll('[data-en]');
+  i18nEls.forEach(function (el) { el.dataset.ptHtml = el.innerHTML; });
+  var phEl = document.getElementById('q');
+  if (phEl) phEl.dataset.ptPh = phEl.getAttribute('placeholder');
+  var savedLang = localStorage.getItem('lang') ||
+    ((navigator.language || 'en').toLowerCase().indexOf('pt') === 0 ? 'pt' : 'en');
+  applyLang(savedLang);
+  document.getElementById('lang-toggle').addEventListener('click', function () {
+    applyLang(html.dataset.lang === 'en' ? 'pt' : 'en');
+    localStorage.setItem('lang', html.dataset.lang);
+  });
+  function applyLang(l) {
+    html.dataset.lang = l;
+    html.setAttribute('lang', l === 'en' ? 'en' : 'pt-BR');
+    i18nEls.forEach(function (el) {
+      el.innerHTML = (l === 'en' && el.dataset.en != null && el.dataset.en !== '')
+        ? el.dataset.en : el.dataset.ptHtml;
+    });
+    if (phEl && phEl.dataset.enPh) {
+      phEl.setAttribute('placeholder', l === 'en' ? phEl.dataset.enPh : phEl.dataset.ptPh);
+    }
+    document.getElementById('lang-label').textContent = (l === 'en' ? 'PT' : 'EN');
   }
 </script>
 </body>
