@@ -81,7 +81,10 @@
     .nav-links a:hover { color: var(--primary); }
     @media (max-width: 600px) { .nav-links { display: none; } }
 
-    /* THEME TOGGLE */
+    /* LANG + THEME TOGGLES */
+    .nav-btns {
+      display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0;
+    }
     #lang-toggle {
       background: none; border: 1px solid var(--border); border-radius: var(--radius);
       padding: 6px 9px; cursor: pointer; color: var(--text-muted);
@@ -340,13 +343,15 @@
       <li><a href="#radioamadorismo">Ham Radio</a></li>
       <li><a href="#contato" data-i18n="nav.contact">Contato</a></li>
     </ul>
-    <button id="lang-toggle" aria-label="Language / Idioma">
-      <span id="lang-label"></span>
-    </button>
-    <button id="theme-toggle" aria-label="Alternar tema">
-      <span id="theme-icon"></span>
-      <span class="label" id="theme-label"></span>
-    </button>
+    <div class="nav-btns">
+      <button id="lang-toggle" aria-label="Language / Idioma">
+        <span id="lang-label"></span>
+      </button>
+      <button id="theme-toggle" aria-label="Alternar tema">
+        <span id="theme-icon"></span>
+        <span class="label" id="theme-label"></span>
+      </button>
+    </div>
   </nav>
 
   <main>
@@ -814,10 +819,15 @@
       localStorage.setItem('theme', next);
     });
 
+    function themeLabel(t) {
+      var en = (html.dataset.lang || 'pt') === 'en';
+      if (t === 'dark') return en ? 'Light' : 'Claro';
+      return en ? 'Dark' : 'Escuro';
+    }
     function applyTheme(t) {
       html.dataset.theme = t;
       icon.textContent = t === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
-      lbl.textContent  = t === 'dark' ? 'Claro' : 'Escuro';
+      lbl.textContent  = themeLabel(t);
     }
 
     // Bio accordion
@@ -856,6 +866,7 @@
         el.innerHTML = (l === 'en' && I18N_EN[k] != null) ? I18N_EN[k] : el.dataset.ptHtml;
       });
       document.getElementById('lang-label').textContent = (l === 'en' ? 'PT' : 'EN');
+      if (lbl) lbl.textContent = themeLabel(html.dataset.theme);
     }
 
   </script>

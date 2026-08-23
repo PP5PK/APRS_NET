@@ -303,10 +303,15 @@ try {
     var next = html.dataset.theme === 'dark' ? 'light' : 'dark';
     applyTheme(next); localStorage.setItem('theme', next);
   });
+  function themeLabel(t) {
+    var en = (html.dataset.lang || 'pt') === 'en';
+    if (t === 'dark') return en ? 'Light' : 'Claro';
+    return en ? 'Dark' : 'Escuro';
+  }
   function applyTheme(t) {
     html.dataset.theme = t;
     document.getElementById('theme-icon').textContent = t === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
-    document.getElementById('theme-label').textContent = t === 'dark' ? 'Claro' : 'Escuro';
+    document.getElementById('theme-label').textContent = themeLabel(t);
   }
 
   // Search filter (callsign or name).
@@ -351,6 +356,9 @@ try {
       phEl.setAttribute('placeholder', l === 'en' ? phEl.dataset.enPh : phEl.dataset.ptPh);
     }
     document.getElementById('lang-label').textContent = (l === 'en' ? 'PT' : 'EN');
+    // Atualiza rótulo do tema conforme o idioma
+    var themeLbl = document.getElementById('theme-label');
+    if (themeLbl) themeLbl.textContent = themeLabel(html.dataset.theme);
   }
 </script>
 </body>
