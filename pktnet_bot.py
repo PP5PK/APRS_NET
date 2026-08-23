@@ -70,10 +70,10 @@ ACK_RE = re.compile(r"^(ack|rej)([0-9A-Za-z]{1,5})$")
 # surrounding brackets/spaces stripped); values are the internal action names.
 COMMAND_ALIASES = {
     # public (any participant)
-    "HELP": "help",
+    "HELP": "help", "INFO": "help", "?": "help",
     "STATUS": "status",
-    "LAST": "last",
-    "TIME": "time",
+    "LAST": "last", "RECENT": "last",
+    "TIME": "time", "DURATION": "time",
     "ME": "me",
     "RESEND": "resend",
     "RESET": "reset",
@@ -90,10 +90,10 @@ ADMIN_ACTIONS = {"users", "start", "stop", "pause", "restart"}
 
 # Group-chat room commands (messages addressed to the room callsign).
 ROOM_COMMAND_ALIASES = {
-    "JOIN": "join", "IN": "join",
-    "LEAVE": "leave", "QRT": "leave", "OUT": "leave",
-    "WHO": "who",
-    "HELP": "help", "?": "help",
+    "JOIN": "join", "IN": "join", "START": "join",
+    "LEAVE": "leave", "QRT": "leave", "OUT": "leave", "EXIT": "leave", "END": "leave", "QUIT": "leave",
+    "WHO": "who", "USERS": "who",
+    "HELP": "help", "INFO": "help", "?": "help",
 }
 
 # Command names shown by HELP, per permission group.
