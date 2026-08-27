@@ -114,7 +114,25 @@ validate_no_commas() {
 #   1. Colored printf of label/hint — ends with \n
 #   2. printf of the input marker  — NO ANSI codes whatsoever
 #   3. read -r into the variable
+#
+# EOF SAFETY: every read below goes through `_read_or_exit`, which exits the
+# script cleanly if stdin is closed (EOF). Without this, a failed `read`
+# leaves the target variable at its PREVIOUS value (its own, or a leftover
+# global from an earlier prompt) and the caller happily continues as if the
+# user had retyped the same answer — which, in the main menu loop, means the
+# last action (e.g. a callsign query) silently repeats forever, flooding the
+# terminal and making the script look "stuck" right after that query.
 # =============================================================================
+
+# Read into $2 (a variable name), exiting the script if stdin hit EOF.
+# Usage: _read_or_exit "$_var"   (plain read)
+#        _read_or_exit "$_var" -s  (silent, unused here but kept for symmetry)
+_read_or_exit() {
+    if ! read -r "$1"; then
+        printf "\n${BRED}  ✘  Input closed (EOF) — exiting to avoid a stuck loop.${RST}\n\n"
+        exit 1
+    fi
+}
 
 # Simple read with optional label and hint
 # Usage: pread VARNAME "Label" "hint"
@@ -122,7 +140,7 @@ pread() {
     local _var="$1" _label="$2" _hint="${3:-}"
     printf "${BYELLOW}  %s${RST}  ${DIM}%s${RST}\n" "$_label" "$_hint"
     printf "  > "
-    read -r "$_var"
+    _read_or_exit "$_var"
 }
 
 # y/N confirmation
@@ -131,7 +149,7 @@ pconfirm() {
     local _var="$1" _msg="$2"
     printf "${BYELLOW}  %s${RST}  ${DIM}(y/N)${RST}\n" "$_msg"
     printf "  > "
-    read -r "$_var"
+    _read_or_exit "$_var"
 }
 
 # Read a field with pre-filled value (Enter keeps the current value)
@@ -150,7 +168,7 @@ read_field() {
     while true; do
         printf "${BYELLOW}  %s${RST}  ${DIM}%s${RST}\n" "$_label" "$_hint"
         printf "  > "
-        read -r _input
+        _read_or_exit _input
         check_escape "$_input" && return 1
         [[ -z "$_input" && -n "$_current" ]] && _input="$_current"
         validate_no_commas "$_input" || continue
@@ -169,9 +187,14 @@ read_field() {
 list_by_callsign() {
     local CALL="$1"
 
-    mapfile -t _LINES < <(find_lines_by_call "$CALL")
+    # Single full-file pass that prints the matching ROWS directly (not line
+    # numbers), instead of the old approach of finding N line numbers and then
+    # re-scanning the whole file with `sed -n Np` once per match. On a
+    # callsign with many duplicate RadioID entries that old approach could do
+    # dozens of extra full-file scans and feel like the script had frozen.
+    mapfile -t _ROWS < <(awk -F',' -v call="$CALL" '$2 == call' "$DB_FILE")
 
-    local total=${#_LINES[@]}
+    local total=${#_ROWS[@]}
 
     if (( total == 0 )); then
         warn "No records found for ${CALL}."
@@ -191,8 +214,8 @@ list_by_callsign() {
         $W_CTRY "COUNTRY"
     separator
 
-    for LN in "${_LINES[@]}"; do
-        IFS=',' read -r _D _C _N _S _CI _E _P <<< "$(sed -n "${LN}p" "$DB_FILE")"
+    for ROW in "${_ROWS[@]}"; do
+        IFS=',' read -r _D _C _N _S _CI _E _P <<< "$ROW"
         _P="${_P%$'\r'}"
         local full_name="${_N} ${_S}"
         printf "  ${DIM}%-*s${RST}${BYELLOW}%-*s${RST}${WHITE}%-*s${RST}${DIM}%-*s%-*s${RST}\n" \
@@ -632,7 +655,7 @@ search_database() {
         hint_nav+="${BYELLOW}[${ESCAPE}]${RST}${DIM} exit${RST}"
         printf "  %b\n" "$hint_nav"
         printf "  > "
-        read -r nav
+        _read_or_exit nav
 
         case "${nav^^}" in
             "$ESCAPE") break ;;
@@ -654,9 +677,15 @@ search_database() {
 # MAIN MENU
 # --------------------------------------------
 main_menu() {
+    clear   # clean screen only once, on entry — NOT every loop iteration.
+            # Clearing every iteration wipes out whatever a command just
+            # printed (a callsign list, search results, a saved record...)
+            # before the operator has a chance to read it. From here on the
+            # banner is simply reprinted below the previous output, so
+            # results stay visible and scroll naturally, like a normal
+            # terminal session.
     while true; do
         setup_width
-        clear
         local title="PKTNET USER DATABASE"
         local tlen=${#title}
         local bar; bar=$(printf '%*s' "$BANNER_IN" '' | sed 's/ /═/g')
