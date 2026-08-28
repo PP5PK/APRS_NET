@@ -608,7 +608,7 @@ Built and maintained by **Daniel — PP5PK**.
 
 ## License
 
-Released under the MIT License. See [`LICENSE`](LICENSE) for details.
+Released under the **The Unlicense** License. See [`LICENSE`](LICENSE) for details.
 
 ---
 
