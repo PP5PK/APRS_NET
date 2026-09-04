@@ -3,7 +3,7 @@
 
 [aprsis]
 # A tier-2 rotate works; prefer a regional pool for your location.
-server = firenet.us
+server = rotate.aprs.net
 port = 14580
 
 # Verified login identity for the connection. The passcode is derived from
@@ -57,7 +57,7 @@ rate_cooldown_min = 10
 # disable the room. Commands (to room_call): JOIN, LEAVE, WHO, HELP.
 room_call = PKTQSO
 # Drop members with no activity for this many minutes.
-timeout_min = 1440
+timeout_min = 4320
 # Maximum members in the room.
 max_members = 60
 # Minimum seconds between a member's relayed messages (flood guard).
@@ -103,6 +103,18 @@ resend_min = 5
 # messages will land in spam. Keep this file out of git - it holds the key.
 enable = false
 host = smtp-relay.brevo.com
+# 587 (STARTTLS) is the default and works on most hosts. If emails time out
+# (not an auth/IP error — just silence until the connection gives up), your
+# VPS provider is very likely blocking outbound port 587. Some VPS providers
+# block outbound 25/465/587 by default to fight spam abuse, which shows up
+# as emails timing out (silence, not an auth/IP error). Test quickly with:
+#   for port in 587 465 2525 25; do
+#     timeout 5 bash -c "echo > /dev/tcp/smtp-relay.brevo.com/$port" \
+#       && echo "Port $port: OPEN" || echo "Port $port: BLOCKED"
+#   done
+# If only 2525 comes back open (a common pattern), set port = 2525 below —
+# it's Brevo's documented fallback and the bot handles it the same as 587
+# (STARTTLS). Port 465 (implicit TLS) also works if that's the one open.
 port = 587
 # Brevo SMTP login and the SMTP KEY (not your account password).
 user = your-login@smtp-brevo.com
@@ -112,5 +124,5 @@ from = aprs@pp5pk.net
 from_name = Daniel K. [APRS PKTNET / PKTQSO]
 # Optional: where replies should go (can be ANY address, e.g. a Gmail you read
 # often). Does not affect SPF/DKIM. Leave empty to reply to 'from'.
-reply_to =
+reply_to = 
 subject = Your APRS PKTNET participation certificate

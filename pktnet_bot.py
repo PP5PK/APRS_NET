@@ -1436,9 +1436,18 @@ class PktNetBot:
                 data = fh.read()
             msg.add_attachment(data, maintype="application", subtype="pdf",
                                filename=os.path.basename(pdf_path))
-            with smtplib.SMTP(cfg["email_host"], cfg["email_port"],
-                              timeout=30) as smtp:
-                smtp.starttls()
+            # Port 465 is implicit TLS (the connection is wrapped in SSL from
+            # the first byte); 587 and 2525 are plaintext-then-STARTTLS. Using
+            # the wrong method for a port either fails outright or hangs, so
+            # pick the right one automatically from the configured port.
+            if cfg["email_port"] == 465:
+                smtp_cls = smtplib.SMTP_SSL
+            else:
+                smtp_cls = smtplib.SMTP
+            with smtp_cls(cfg["email_host"], cfg["email_port"],
+                          timeout=30) as smtp:
+                if cfg["email_port"] != 465:
+                    smtp.starttls()
                 if cfg["email_user"]:
                     smtp.login(cfg["email_user"], cfg["email_password"])
                 smtp.send_message(msg)

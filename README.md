@@ -307,7 +307,7 @@ contains your passcode.
 | `cert` | `resend_min` | `5` | If the operator goes quiet mid-flow, resend the last prompt after N minutes (a lost message shouldn't cost the certificate). |
 | `cert` | `publish_dir` | *(empty)* | If set, symlink each generated certificate into this folder so a website on the same server can list it. Empty = disabled. Requires the folder to be in the service's `ReadWritePaths` and writable by the `pktnet` user. |
 | `email` | `enable` | `false` | Email the generated PDF over SMTP (needs the keys below). |
-| `email` | `host` / `port` | `smtp-relay.brevo.com` / `587` | SMTP server and STARTTLS port. |
+| `email` | `host` / `port` | `smtp-relay.brevo.com` / `587` | SMTP server and port. `587` and `2525` use STARTTLS, `465` uses implicit TLS — the bot picks the right method automatically from the port number. If sending times out (no error, just silence) rather than failing with an auth/IP message, your VPS provider is very likely blocking outbound port 587; try `2525` (Brevo's documented fallback) or `465`. |
 | `email` | `user` / `password` | — | SMTP login and the provider's SMTP key (keep out of git). |
 | `email` | `from` / `from_name` | — | Sender address (on an SPF/DKIM-authenticated domain) and display name. |
 | `email` | `reply_to` | *(empty)* | Optional Reply-To (any address). Empty replies to `from`. |
