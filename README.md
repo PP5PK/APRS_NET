@@ -350,6 +350,11 @@ pktnet_bot.py -c /etc/pktnet/pktnet.conf events
 # End a net early (defaults to the active event):
 pktnet_bot.py -c /etc/pktnet/pktnet.conf endevent
 
+# Change an event's end time WITHOUT closing it (net stays open) — either
+# relative (add/subtract minutes) or an absolute new time:
+pktnet_bot.py -c /etc/pktnet/pktnet.conf editevent --extend 30
+pktnet_bot.py -c /etc/pktnet/pktnet.conf editevent --end 2026-06-25T22:00:00Z
+
 # Delete a net and its check-ins:
 pktnet_bot.py -c /etc/pktnet/pktnet.conf delevent 1
 
@@ -380,7 +385,7 @@ the operator can see the order and notice if a part went missing.
 | `ME` | How many nets your base callsign has joined (all SSIDs counted together), plus your per-SSID check-in times in the active net. |
 | `RESEND` | Re-generate and re-send your certificate for your latest net to the email on file (only when `[cert]` is enabled). |
 | `RESET` | Restart the certificate data collection from the start (asks your email again) - useful if a message was lost and the flow got stuck (only when `[cert]` is enabled). |
-| `HELP` | Lists the commands available to you (admins see the admin ones too). |
+| `HELP` / `HELP <command>` | With no argument, lists the commands available to you — admins get the public list and a separate `Admin: ...` message with the admin-only ones, so the growing admin list doesn't crowd out the public one. With a command name (`HELP EXTEND`), replies with a one-line usage summary for that command; asking about an admin command you can't use replies the same as an unknown command, so it isn't a way to discover them. |
 
 **Admin** — only callsigns in `admin_calls` (matched by base call):
 
@@ -391,6 +396,7 @@ the operator can see the order and notice if a part went missing.
 | `STOP` | End the active net now. |
 | `PAUSE` | Pause the net; check-ins get the `paused_text` maintenance reply and are not logged. |
 | `RESTART` | Resume a paused net. |
+| `EXTEND <arg>` | Change the active net's end time without closing it. `<arg>` is either minutes to add/subtract (`EXTEND 30`, `EXTEND -15`) or an absolute UTC time (`EXTEND 2359z`, same calendar day as the current end) or a full date+time (`EXTEND 2026-09-08 0100z`, needed to cross midnight). A bare 4-digit number with no `:` or `z` is always minutes, never a clock time, so existing habits keep working. |
 
 An admin command sent by a non-admin is ignored (treated as a check-in), so the
 admin commands stay invisible to ordinary participants. In `require_active_event

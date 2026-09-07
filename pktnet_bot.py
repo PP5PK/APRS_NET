@@ -83,10 +83,11 @@ COMMAND_ALIASES = {
     "STOP": "stop", "END": "stop",
     "PAUSE": "pause",
     "RESTART": "restart", "RESUME": "restart",
+    "EXTEND": "extend",
 }
 
 PUBLIC_ACTIONS = {"help", "status", "last", "time", "me", "resend", "reset"}
-ADMIN_ACTIONS = {"users", "start", "stop", "pause", "restart"}
+ADMIN_ACTIONS = {"users", "start", "stop", "pause", "restart", "extend"}
 
 # Group-chat room commands (messages addressed to the room callsign).
 ROOM_COMMAND_ALIASES = {
@@ -98,7 +99,30 @@ ROOM_COMMAND_ALIASES = {
 
 # Command names shown by HELP, per permission group.
 HELP_PUBLIC = ["HELP", "STATUS", "LAST", "TIME", "ME", "RESEND", "RESET"]
-HELP_ADMIN = ["USERS", "START", "STOP", "PAUSE", "RESTART"]
+HELP_ADMIN = ["USERS", "START", "STOP", "PAUSE", "RESTART", "EXTEND"]
+
+# One-line syntax/usage summary per command, for "HELP <COMMAND>". Every
+# value must fit in a single APRS message (APRS_MAX_TEXT, 67 chars).
+COMMAND_HELP = {
+    "HELP": "HELP lists commands. HELP <CMD> shows its syntax.",
+    "STATUS": "STATUS shows the net name and current check-in count.",
+    "LAST": "LAST shows the last 5 check-ins.",
+    "TIME": "TIME shows how much time is left in the net.",
+    "ME": "ME shows your check-ins and your last CHECK time.",
+    "RESEND": "RESEND re-sends your certificate for the latest net.",
+    "RESET": "RESET restarts your certificate data collection.",
+    "USERS": "USERS lists every callsign checked into the active net.",
+    "START": "START [name] starts a net for today (until 2359z).",
+    "STOP": "STOP ends the active net now.",
+    "PAUSE": "PAUSE pauses the net; check-ins get a maintenance reply.",
+    "RESTART": "RESTART resumes a paused net.",
+    "EXTEND": [
+        "EXTEND changes end time. Minutes: EXTEND 30 or -15.",
+        "Time today: EXTEND 2300z or 23:00 -> ends 23:00 UTC.",
+        "Other day: EXTEND 2026-09-08 0100z (past midnight).",
+        "Plain numbers=minutes: 2300 means +2300min, not 23h.",
+    ],
+}
 
 
 def base_call(call):
@@ -116,6 +140,65 @@ def _iso_to_dt(iso):
     """Parse a stored ISO 8601 timestamp into a tz-aware UTC datetime."""
     dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+_EXTEND_MINUTES_RE = re.compile(r"[+-]?\d+")
+_EXTEND_BARE_TIME_RE = re.compile(r"(\d{1,2}):?(\d{2})")
+
+
+def _normalize_iso_time(s):
+    """Insert colons into a colon-less time component ('...T0100' ->
+    '...T01:00') so datetime.fromisoformat() accepts it on every supported
+    Python version - the interpreter itself only started accepting a
+    colon-less time from 3.11 onward, and this bot targets 3.9+."""
+    if "T" not in s:
+        return s
+    date_part, time_part = s.split("T", 1)
+    if ":" in time_part or not time_part.isdigit():
+        return s
+    if len(time_part) == 4:
+        time_part = time_part[:2] + ":" + time_part[2:]
+    elif len(time_part) == 6:
+        time_part = time_part[:2] + ":" + time_part[2:4] + ":" + time_part[4:]
+    return date_part + "T" + time_part
+
+
+def _parse_extend_arg(arg, current_end_dt):
+    """Parse the EXTEND command's argument into a new end datetime (UTC).
+
+    Accepts, auto-detected:
+      - a signed/unsigned integer: minutes to add to the current end time,
+        negative to shorten (unchanged from before) - e.g. '30', '-15'.
+      - a bare time, with or without a trailing 'Z': 'HH:MM', 'HHMM', or
+        'HHMMz' - applied to the same UTC calendar date as the event's
+        current end time. A plain 4-digit number with neither a colon nor a
+        trailing Z is NOT treated as a time - it's minutes (e.g. '90' is
+        +90 minutes, not 00:90) - to keep the existing shorthand unambiguous.
+      - a full date and time: 'YYYY-MM-DD HH:MM' (space or 'T' separator),
+        optional seconds and/or trailing 'Z' - an absolute new end time.
+
+    Raises ValueError (with no message needed - callers show a fixed usage
+    hint) on anything that doesn't fit one of these shapes.
+    """
+    a = arg.strip()
+    if _EXTEND_MINUTES_RE.fullmatch(a):
+        return current_end_dt + timedelta(minutes=int(a))
+
+    has_z = a[-1:] in "zZ"
+    body = a[:-1] if has_z else a
+    m = _EXTEND_BARE_TIME_RE.fullmatch(body)
+    if m and (has_z or ":" in body):
+        hh, mm = int(m.group(1)), int(m.group(2))
+        if not (0 <= hh <= 23 and 0 <= mm <= 59):
+            raise ValueError("time out of range")
+        return current_end_dt.replace(hour=hh, minute=mm, second=0,
+                                      microsecond=0)
+
+    iso = _normalize_iso_time(body.replace(" ", "T"))
+    dt = datetime.fromisoformat(iso)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 def _fmt_duration(td):
@@ -410,6 +493,15 @@ def end_event(conn, event_id, now_iso):
                  "WHERE event_id = ?", (now_iso, event_id))
     conn.commit()
     return row
+
+
+def set_event_end(conn, event_id, new_end_iso):
+    """Change an event's end time without touching its status - unlike
+    end_event, this can push the boundary later (extend) or earlier
+    (shorten) while the net keeps running."""
+    conn.execute("UPDATE events SET end_utc = ? WHERE event_id = ?",
+                 (new_end_iso, event_id))
+    conn.commit()
 
 
 def set_event_status(conn, event_id, status):
@@ -1017,11 +1109,40 @@ class PktNetBot:
 
         # --- public commands --------------------------------------------- #
         if action == "help":
+            query = arg.strip().strip("[]").strip().upper()
+            if query:
+                cert_off = not self.cfg["cert_enable"]
+                hidden = cert_off and query in ("RESEND", "RESET")
+                admin_only = query in HELP_ADMIN
+                if query in COMMAND_HELP and not hidden and not (
+                        admin_only and not is_admin):
+                    text = COMMAND_HELP[query]
+                    if isinstance(text, list):
+                        self._enqueue_numbered(source, text)
+                    else:
+                        self._enqueue_reply(source, text)
+                else:
+                    self._enqueue_reply(source, "Unknown command. Send "
+                                                "HELP for the list.")
+                return
+
             cmds = list(HELP_PUBLIC)
             if not self.cfg["cert_enable"]:
                 cmds = [c for c in cmds if c not in ("RESEND", "RESET")]
-            cmds += (HELP_ADMIN if is_admin else [])
-            self._enqueue_pack(source, cmds, sep=", ")
+
+            if is_admin:
+                # Admins always get at least two logical parts (public list,
+                # then the admin-only list) sent as separate messages, so pack
+                # both leaving room for the "[i/n]: " prefix up front and
+                # number them together as one continuous sequence rather than
+                # each restarting at [1/1].
+                limit = APRS_MAX_TEXT - PART_RESERVE
+                lines = self._pack(cmds, sep=", ", limit=limit)
+                lines += self._pack(HELP_ADMIN, sep=", ", prefix="Admin: ",
+                                    limit=limit)
+                self._enqueue_numbered(source, lines)
+            else:
+                self._enqueue_pack(source, cmds, sep=", ")
             return
 
         if action == "reset":
@@ -1160,6 +1281,37 @@ class PktNetBot:
             set_event_status(conn, event["event_id"], "open")
             LOG.info("Net #%s resumed by %s", event["event_id"], source)
             self._enqueue_reply(source, "Net resumed: {}".format(event["name"]))
+            return
+
+        if action == "extend":
+            if event is None:
+                self._enqueue_reply(source, "No active net to extend.")
+                return
+            usage = ("Usage: EXTEND min|HHMMz|\"date HHMMz\" (bare time = "
+                     "today)")
+            if not arg.strip():
+                self._enqueue_reply(source, usage)
+                return
+            cur_end = _iso_to_dt(event["end_utc"])
+            try:
+                new_end = _parse_extend_arg(arg, cur_end)
+            except ValueError:
+                self._enqueue_reply(source, usage)
+                return
+            if new_end <= _iso_to_dt(event["start_utc"]):
+                self._enqueue_reply(source, "New end must be after net "
+                                            "start.")
+                return
+            set_event_end(conn, event["event_id"], new_end.isoformat())
+            LOG.info("Net #%s end time changed by %s: %s -> %s (arg=%r)",
+                     event["event_id"], source, event["end_utc"],
+                     new_end.isoformat(), arg)
+            verb = "extended" if new_end > cur_end else "shortened"
+            if new_end.date() == cur_end.date():
+                when = new_end.strftime("%H%M") + "z"
+            else:
+                when = new_end.strftime("%Y-%m-%d %H%M") + "z"
+            self._enqueue_reply(source, "Net {} to {}.".format(verb, when))
             return
 
     @staticmethod
@@ -1658,6 +1810,33 @@ def cmd_endevent(args, cfg):
     conn.close()
 
 
+def cmd_editevent(args, cfg):
+    conn = init_db(cfg["db_path"])
+    eid = _resolve_event_id(conn, args.event_id)
+    if eid is None:
+        print("No event to edit.")
+        return
+    row = conn.execute("SELECT * FROM events WHERE event_id = ?",
+                       (eid,)).fetchone()
+    if row is None:
+        print("Event #{} not found.".format(eid))
+        return
+
+    if args.end:
+        new_end = _parse_iso(args.end)
+    elif args.extend is not None:
+        new_end = _iso_to_dt(row["end_utc"]) + timedelta(minutes=args.extend)
+    else:
+        print("Specify --end (absolute ISO 8601) or --extend (+/- minutes).")
+        conn.close()
+        return
+
+    set_event_end(conn, eid, new_end.isoformat())
+    print("Event #{} end time changed: {} -> {}".format(
+        eid, row["end_utc"], new_end.isoformat()))
+    conn.close()
+
+
 def cmd_delevent(args, cfg):
     conn = init_db(cfg["db_path"])
     row = conn.execute("SELECT * FROM events WHERE event_id = ?",
@@ -1754,6 +1933,19 @@ def main():
     p_end.add_argument("event_id", nargs="?", type=int,
                        help="event id (defaults to the active/most recent event)")
 
+    p_edit = sub.add_parser("editevent", parents=[common],
+                            help="change an event's end time (extend or "
+                                 "shorten without closing it)")
+    p_edit.add_argument("event_id", nargs="?", type=int,
+                        help="event id (defaults to the active/most recent "
+                             "event)")
+    p_edit.add_argument("--end", metavar="ISO8601",
+                        help="new absolute end time, e.g. "
+                             "2026-09-04T23:00:00Z")
+    p_edit.add_argument("--extend", type=int, metavar="MINUTES",
+                        help="add this many minutes to the current end time "
+                             "(negative to shorten)")
+
     p_del = sub.add_parser("delevent", parents=[common],
                            help="delete a net and its check-ins")
     p_del.add_argument("event_id", type=int, help="event id to delete")
@@ -1782,6 +1974,7 @@ def main():
         "run": cmd_run,
         "addevent": cmd_addevent,
         "endevent": cmd_endevent,
+        "editevent": cmd_editevent,
         "delevent": cmd_delevent,
         "events": cmd_events,
         "checkins": cmd_checkins,
