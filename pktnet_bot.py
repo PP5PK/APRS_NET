@@ -1521,12 +1521,24 @@ class PktNetBot:
             return
 
         if state == "confirm_name":
-            name = row["name_cand"] if low in ("yes", "sim", "y", "ok") \
-                else t[:40]
+            if low in ("yes", "sim", "y", "ok"):
+                name = row["name_cand"]
+            else:
+                if looks_like_email(t):
+                    self._flow_send(
+                        source, "That is an email, not a name. Reply YES "
+                        "or send your name.")
+                    return
+                name = t[:40]
             self._finish_cert(source, row["event_id"], row["email"], name)
             return
 
         if state == "await_name":
+            if looks_like_email(t):
+                self._flow_send(
+                    source, "That looks like an email, not a name. Send "
+                    "your name instead.")
+                return
             self._finish_cert(source, row["event_id"], row["email"], t[:40])
             return
 
