@@ -37,6 +37,24 @@ function fmt_stamp($iso) {                           // ISO -> YYYY/MM/DD, HH:MM
         return $d->format('Y/m/d, H:i:s') . 'z';
     } catch (Exception $e) { return ''; }
 }
+function fmt_net_stamp($iso) {                        // ISO -> YYYY/MM/DD HH:MMz (UTC)
+    try {
+        $d = new DateTime($iso); $d->setTimezone(new DateTimeZone('UTC'));
+        return $d->format('Y/m/d H:i') . 'z';
+    } catch (Exception $e) { return ''; }
+}
+function net_is_live($ev, $nowTs) {
+    // The bot never auto-closes a net when its scheduled end passes - status
+    // only becomes 'closed' if an admin explicitly ends it. So a net whose
+    // window is simply over can still show status='open' in the database.
+    // Use the actual start/end times to decide "in progress" for display.
+    if ($ev['status'] === 'closed') return false;
+    try {
+        $start = (new DateTime($ev['start']))->getTimestamp();
+        $end   = (new DateTime($ev['end']))->getTimestamp();
+    } catch (Exception $e) { return false; }
+    return $nowTs >= $start && $nowTs <= $end;
+}
 
 /* ---- download handler: stream a single certificate PDF ---- */
 if (isset($_GET['dl'])) {
@@ -79,7 +97,8 @@ try {
     }
 
     $rows = $db->query(
-        "SELECT e.event_id AS eid, e.event_date AS ed, e.status AS st,
+        "SELECT e.event_id AS eid, e.name AS ename, e.event_date AS ed,
+                e.start_utc AS su, e.end_utc AS eu, e.status AS st,
                 c.callsign AS call, c.ts_utc AS ts
          FROM events e JOIN checkins c ON c.event_id = e.event_id
          ORDER BY e.event_id DESC, c.ts_utc ASC")->fetchAll(PDO::FETCH_ASSOC);
@@ -105,7 +124,9 @@ try {
     foreach ($rows as $r) {
         $eid = (int)$r['eid'];
         if (!isset($events[$eid])) {
-            $events[$eid] = ['date' => $r['ed'], 'status' => $r['st'], 'rows' => []];
+            $events[$eid] = ['name' => $r['ename'], 'date' => $r['ed'],
+                             'start' => $r['su'], 'end' => $r['eu'],
+                             'status' => $r['st'], 'rows' => []];
         }
         $b = base_call($r['call']);
         $cert = $certs[$eid . '|' . $b] ?? null;
@@ -182,12 +203,16 @@ try {
   .search svg{position:absolute;left:.85rem;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;}
   .count{font-family:var(--font-mono);font-size:.8rem;color:var(--text-muted);margin-bottom:2rem;}
   .net{margin-bottom:2.25rem;}
-  .net-head{display:flex;align-items:baseline;gap:.75rem;margin-bottom:1rem;padding-bottom:.5rem;
-    border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  .net-head{display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;padding-bottom:.5rem;
+    border-bottom:1px solid var(--border);flex-wrap:wrap;cursor:pointer;user-select:none;}
+  .net-head:hover h2{color:var(--primary);}
   .net-head h2{font-size:1.25rem;font-weight:600;}
   .net-head .sub{font-family:var(--font-mono);font-size:.78rem;color:var(--text-muted);}
   .net-head .live{color:var(--ok);border:1px solid var(--ok-bd);background:color-mix(in srgb,var(--ok) 8%,transparent);
     padding:.1rem .5rem;border-radius:100px;font-size:.68rem;}
+  .net-head .chevron{margin-left:auto;color:var(--text-muted);flex-shrink:0;transition:transform .2s;}
+  .net.collapsed .chevron{transform:rotate(-90deg);}
+  .net.collapsed .grid{display:none;}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.6rem;}
   .op{display:flex;align-items:center;gap:.7rem;padding:.6rem .85rem;background:var(--surface);
     border:1px solid var(--border);border-radius:var(--radius);transition:.15s;}
@@ -252,15 +277,24 @@ try {
   ?>
   <p class="count" data-en="<?= htmlspecialchars($countEn, ENT_QUOTES) ?>"><?= $countPt ?></p>
 
-  <?php foreach ($events as $eid => $ev): ?>
-  <section class="net" data-net="<?= $eid ?>">
+  <?php $nowTs = time(); ?>
+  <?php foreach ($events as $eid => $ev):
+        $live = net_is_live($ev, $nowTs);
+        $collapsed = !$live;   // only an in-progress net starts expanded
+  ?>
+  <section class="net<?= $collapsed ? ' collapsed' : '' ?>" data-net="<?= $eid ?>"
+           data-default-collapsed="<?= $collapsed ? 1 : 0 ?>">
     <div class="net-head">
-      <h2><?= net_label($eid) ?></h2>
+      <h2>
+        <?= net_label($eid) ?><?php if (!empty($ev['name'])): ?> &ndash; <?= htmlspecialchars($ev['name']) ?><?php endif; ?>
+      </h2>
       <?php $np = count($ev['rows']);
-            $subPt = fmt_date($ev['date']).' &middot; '.$np.' participante'.($np==1?'':'s');
-            $subEn = fmt_date($ev['date']).' &middot; '.$np.' participant'.($np==1?'':'s'); ?>
+            $rangePt = fmt_net_stamp($ev['start']) . ' - ' . fmt_net_stamp($ev['end']);
+            $subPt = $rangePt . ' &middot; ' . $np . ' participante' . ($np==1?'':'s');
+            $subEn = $rangePt . ' &middot; ' . $np . ' participant' . ($np==1?'':'s'); ?>
       <span class="sub" data-en="<?= htmlspecialchars($subEn, ENT_QUOTES) ?>"><?= $subPt ?></span>
-      <?php if ($ev['status'] === 'open'): ?><span class="live" data-en="live">ao vivo</span><?php endif; ?>
+      <?php if ($live): ?><span class="live" data-en="live">ao vivo</span><?php endif; ?>
+      <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
     <div class="grid">
       <?php $i = 0; foreach ($ev['rows'] as $op): $i++;
@@ -314,6 +348,13 @@ try {
     document.getElementById('theme-label').textContent = themeLabel(t);
   }
 
+  // Collapse/expand each net by clicking its header.
+  document.querySelectorAll('.net-head').forEach(function (head) {
+    head.addEventListener('click', function () {
+      head.closest('.net').classList.toggle('collapsed');
+    });
+  });
+
   // Search filter (callsign or name).
   var q = document.getElementById('q');
   if (q) {
@@ -329,6 +370,13 @@ try {
         });
         net.style.display = shown ? '' : 'none';
         if (shown) anyVisible = true;
+        // While searching, expand any net with a match so it's visible;
+        // once the search is cleared, restore its normal collapsed state.
+        if (term) {
+          net.classList.remove('collapsed');
+        } else {
+          net.classList.toggle('collapsed', net.dataset.defaultCollapsed === '1');
+        }
       });
       document.getElementById('noMatch').style.display = (term && !anyVisible) ? 'block' : 'none';
     });
