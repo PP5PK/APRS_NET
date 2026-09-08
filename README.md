@@ -59,8 +59,14 @@ only the Python standard library; the optional certificate feature adds
 - **Reliable messaging**: outgoing replies carry a line number and are
   retransmitted until acknowledged, with automatic reconnection and keepalive.
 - **Remote control over APRS**: public queries (`STATUS`, `LAST`, `TIME`, `ME`,
-  `HELP`) and admin commands (`START`, `STOP`, `PAUSE`, `RESTART`, `USERS`) sent
-  as APRS messages to the net callsign.
+  `HELP`, `RESEND`, `RESET`) and admin commands (`START`, `STOP`, `PAUSE`,
+  `RESTART`, `EXTEND`, `USERS`) sent as APRS messages to the net callsign, with
+  a per-command `HELP <command>` syntax lookup.
+- **Loop and flood protection**: never replies to known automated services
+  (`ignore_calls`), and mutes a sender that exceeds a configurable
+  messages-per-minute rate.
+- **Self-correcting event status**: a net's `status` in the database is kept
+  accurate automatically, even if nobody ever sends `STOP` for it.
 - **Group-chat room** (optional): a second callsign that relays each member's
   message to the others, with join/leave/who, flood guard and idle pruning.
 - **Interactive certificates** (optional): after a check-in the bot offers a PDF
@@ -238,10 +244,8 @@ ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
 # ProtectSystem=strict makes everything read-only to the service except the
-# paths below. If you set [cert] publish_dir, add that folder here too (the
-# leading '-' makes systemd ignore it when absent) and let the pktnet user
-# write to it.
-ReadWritePaths=/var/lib/pktnet -/var/www/html/cloud/aprsnet_certs
+# paths below.
+ReadWritePaths=/var/lib/pktnet
 
 [Install]
 WantedBy=multi-user.target
@@ -278,7 +282,7 @@ contains your passcode.
 
 | Section | Key | Default | Description |
 |---------|-----|---------|-------------|
-| `aprsis` | `server` | `firenet.us` | APRS-IS server to connect to. |
+| `aprsis` | `server` | `rotate.aprs2.net` | APRS-IS server to connect to (the standard Tier-2 rotate; a regional pool also works). |
 | `aprsis` | `port` | `14580` | Filtered APRS-IS port. |
 | `aprsis` | `login_call` | — | Verified login identity for the connection (e.g. `PP5PK-3`). Use an SSID that is **not** used by your igate or personal station. |
 | `aprsis` | `passcode` | — | Your APRS-IS passcode. |
@@ -296,7 +300,7 @@ contains your passcode.
 | `net` | `rate_cooldown_min` | `10` | How long a rate-limited sender stays muted, in minutes. |
 | `net` | `paused_text` | `PKTNET under maintenance...` | Reply sent to check-ins while the net is paused. |
 | `room` | `room_call` | *(empty)* | Group-chat room callsign (e.g. `PKTQSO`). Empty disables the room. |
-| `room` | `timeout_min` | `1440` | Drop room members idle for this many minutes. |
+| `room` | `timeout_min` | `4320` | Drop room members idle for this many minutes (3 days). |
 | `room` | `max_members` | `60` | Maximum members in the room. |
 | `room` | `min_interval` | `10` | Minimum seconds between a member's relayed messages. |
 | `cert` | `enable` | `false` | Turn the interactive certificate flow on or off. |
@@ -305,13 +309,13 @@ contains your passcode.
 | `cert` | `template` | `.../certs/pktnet_template.png` | Certificate background design the data is drawn onto. |
 | `cert` | `flow_timeout_min` | `15` | Drop an unfinished certificate conversation after N minutes. |
 | `cert` | `resend_min` | `5` | If the operator goes quiet mid-flow, resend the last prompt after N minutes (a lost message shouldn't cost the certificate). |
-| `cert` | `publish_dir` | *(empty)* | If set, symlink each generated certificate into this folder so a website on the same server can list it. Empty = disabled. Requires the folder to be in the service's `ReadWritePaths` and writable by the `pktnet` user. |
 | `email` | `enable` | `false` | Email the generated PDF over SMTP (needs the keys below). |
 | `email` | `host` / `port` | `smtp-relay.brevo.com` / `587` | SMTP server and port. `587` and `2525` use STARTTLS, `465` uses implicit TLS — the bot picks the right method automatically from the port number. If sending times out (no error, just silence) rather than failing with an auth/IP message, your VPS provider is very likely blocking outbound port 587; try `2525` (Brevo's documented fallback) or `465`. |
 | `email` | `user` / `password` | — | SMTP login and the provider's SMTP key (keep out of git). |
 | `email` | `from` / `from_name` | — | Sender address (on an SPF/DKIM-authenticated domain) and display name. |
 | `email` | `reply_to` | *(empty)* | Optional Reply-To (any address). Empty replies to `from`. |
 | `email` | `subject` | `Your PKTNET participation certificate` | Email subject line. |
+| `email` | `body` | *(built-in template)* | Email body. `{name}` is replaced with the operator's name. |
 | `messaging` | `max_retries` | `3` | Times to retransmit an unacknowledged reply. |
 | `messaging` | `retry_interval` | `30` | Seconds between retransmissions. |
 | `messaging` | `reply_delay` | `1.5` | Seconds to hold a reply after ACKing the incoming message, so the operator's device processes the ACK before the reply arrives (they collide otherwise on a half-duplex RF path). Also spaces consecutive replies. `0` disables. |
@@ -411,10 +415,10 @@ member sends is relayed to all the other members as `SENDER: text`.
 
 | Command (to the room callsign) | Action |
 |--------------------------------|--------|
-| `JOIN` | Enter the room. |
-| `LEAVE` (or `QRT`) | Leave the room. |
-| `WHO` | List the members currently in the room. |
-| `HELP` | Show the room commands. |
+| `JOIN` (or `IN`, `START`) | Enter the room. |
+| `LEAVE` (or `QRT`, `OUT`, `EXIT`, `END`, `QUIT`) | Leave the room. |
+| `WHO` (or `USERS`) | List the members currently in the room. |
+| `HELP` (or `INFO`, `?`) | Show the room commands. |
 
 The message a member sends **to the room** is acknowledged (so their radio stops
 retransmitting), but the relayed copies delivered to each member are sent
@@ -457,8 +461,11 @@ radio (reply `NO` to enter a different email/name, or `YES` to reuse them).
 APRS messages sometimes go missing. To keep a lost message from stranding the
 flow, the bot **resends the last prompt** after `resend_min` minutes of silence,
 and the operator can send `RESET` at any time to start the collection over. An
-unanswered conversation is still dropped after `flow_timeout_min` minutes. The
-bot can also email the PDF — see
+unanswered conversation is still dropped after `flow_timeout_min` minutes.
+Because a resend can arrive after the bot has already moved on to asking for
+the name, an email-shaped reply is never accepted as a name - the bot points
+this out and asks again, so a retransmitted email message can't end up printed
+on the certificate. The bot can also email the PDF — see
 [Emailing certificates](#emailing-certificates) below.
 
 Put `users.db` and the `pktnet_template.png` template in the
@@ -503,7 +510,10 @@ pass SPF/DKIM and are not treated as spam. Using [Brevo](https://www.brevo.com)
 4. **Get the SMTP credentials.** Under *SMTP & API → SMTP*, note the server
    (`smtp-relay.brevo.com`), port (`587`), your SMTP **login**, and generate an
    **SMTP key** (this is a dedicated key, not your account password). Put these
-   in the `[email]` section as `host`, `port`, `user` and `password`.
+   in the `[email]` section as `host`, `port`, `user` and `password`. If sending
+   later times out with no error, your VPS provider is likely blocking outbound
+   port 587 - see the `port` row in the [config table](#configuration) for the
+   fallback ports and a quick way to test which one is open.
 5. **Authorize the sending IP.** Brevo blocks sends from unknown IPs with
    `525 5.7.1 Unauthorized IP address`. Under *Security → Authorized IPs*, add
    the **public IP** of the machine running the bot. Find it on the Pi with:
@@ -561,7 +571,8 @@ CREATE TABLE events (
     event_date TEXT    NOT NULL,          -- YYYY-MM-DD (UTC)
     start_utc  TEXT    NOT NULL,          -- ISO 8601 UTC
     end_utc    TEXT    NOT NULL,          -- ISO 8601 UTC
-    net_call   TEXT    NOT NULL
+    net_call   TEXT    NOT NULL,
+    status     TEXT    NOT NULL DEFAULT 'open'   -- open | paused | closed
 );
 
 CREATE TABLE checkins (
@@ -571,6 +582,30 @@ CREATE TABLE checkins (
     ts_utc    TEXT    NOT NULL,           -- ISO 8601 UTC
     message   TEXT,
     UNIQUE(event_id, callsign)
+);
+
+CREATE TABLE room_members (               -- group-chat room (if room_call is set)
+    callsign      TEXT PRIMARY KEY,
+    joined_utc    TEXT NOT NULL,
+    last_seen_utc TEXT NOT NULL
+);
+
+CREATE TABLE cert_flow (                  -- in-progress certificate conversations
+    callsign      TEXT PRIMARY KEY,       -- source call currently in a flow
+    event_id      INTEGER,
+    state         TEXT NOT NULL,          -- reuse|await_email|confirm_name|await_name
+    email         TEXT,
+    name_cand     TEXT,
+    updated_utc   TEXT NOT NULL,          -- last user activity (for expiry)
+    last_msg      TEXT,                   -- last prompt we sent (for resend)
+    last_sent_utc TEXT                    -- when we last sent to the user
+);
+
+CREATE TABLE cert_contacts (               -- remembered email/name per operator
+    callsign     TEXT PRIMARY KEY,        -- base call
+    email        TEXT,
+    name         TEXT,
+    updated_utc  TEXT NOT NULL
 );
 ```
 
