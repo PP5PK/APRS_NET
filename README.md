@@ -593,6 +593,15 @@ timeout so the management subcommands can write while the daemon is running).
 - **Net callsign.** Pick something distinct (max 9 characters) that will not
   collide with a real callsign or an existing service such as `ANSRVR` or
   `WXSVR`.
+- **`status` housekeeping.** Whether a net accepts check-ins is always decided
+  by its time window (`start_utc`/`end_utc`), not by `status` alone - `STOP`
+  simply closes it early. A net nobody explicitly `STOP`ped otherwise keeps
+  `status='open'` in the database forever, even long after its window has
+  passed; this has no effect on check-in behaviour, but it can mislead
+  anything that reads the column directly (a website, a report). Every ~60s
+  the bot marks any event whose `end_utc` is in the past as `closed`,
+  including on the very first pass right after startup - so simply restarting
+  the service also cleans up any already-stale rows, no manual `UPDATE` needed.
 
 ---
 

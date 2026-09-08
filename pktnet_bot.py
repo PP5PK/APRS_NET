@@ -766,6 +766,7 @@ class PktNetBot:
         self.last_rx = 0.0
         self.last_keepalive = 0.0
         self._last_flow_check = 0.0
+        self._last_event_check = 0.0
         self._room_last = {}   # in-memory per-sender relay cooldown
         self._msg_times = {}   # base call -> recent message monotonic times
         self._flood_until = {}  # base call -> muted until (monotonic)
@@ -887,6 +888,14 @@ class PktNetBot:
             if now - self._last_flow_check >= 30:
                 self._service_cert_flows(now)
                 self._last_flow_check = now
+
+            # Housekeeping: mark expired nets 'closed' (throttled). This does
+            # NOT change check-in behaviour - get_active_event() already
+            # ignores an event once its window passes - it only keeps the
+            # 'status' column accurate for anything that reads it directly.
+            if now - self._last_event_check >= 60:
+                self._service_events(now)
+                self._last_event_check = now
 
     # -- inbound ----------------------------------------------------------- #
 
@@ -1445,6 +1454,23 @@ class PktNetBot:
             self._enqueue_reply(r["callsign"], r["last_msg"])
             touch_cert_flow_sent(self.conn, r["callsign"],
                                  now_dt.isoformat())
+
+    def _service_events(self, now):
+        """Mark any event whose end_utc has passed as 'closed'.
+
+        get_active_event() already ignores an event once 'now' is past its
+        end_utc, so this has no effect on check-in behaviour - a net that
+        was never explicitly STOPped would otherwise sit with status='open'
+        in the database forever, which is misleading for anything that reads
+        the column directly (the website, CLI listings, admin tooling)."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        cur = self.conn.execute(
+            "UPDATE events SET status = 'closed' "
+            "WHERE status != 'closed' AND end_utc < ?", (now_iso,))
+        self.conn.commit()
+        if cur.rowcount:
+            LOG.info("Auto-closed %d expired event(s) (status now accurate)",
+                     cur.rowcount)
 
     def _start_cert_flow(self, source, event_id):
         conn = self.conn
