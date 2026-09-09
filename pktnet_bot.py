@@ -28,7 +28,15 @@ Subcommands
     pktnet_bot.py run                       Run the daemon.
     pktnet_bot.py addevent NAME START END   Register a net event window (UTC).
     pktnet_bot.py events                    List registered events.
+    pktnet_bot.py endevent [EVENT_ID]       End a net now (active event default).
+    pktnet_bot.py editevent [EVENT_ID] [--end ISO8601 | --extend MINUTES]
+                                             Change an event's end time - extend
+                                             or shorten it - without closing it.
+    pktnet_bot.py delevent EVENT_ID [-y]    Delete a net and its check-ins.
     pktnet_bot.py checkins [EVENT_ID]       List check-ins (latest event default).
+
+Run 'pktnet_bot.py <command> --help' for that command's full syntax and
+usage examples.
 
 73 - design built for PP5PK.
 """
