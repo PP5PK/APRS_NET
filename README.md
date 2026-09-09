@@ -54,10 +54,12 @@ only the Python standard library; the optional certificate feature adds
   handles duplicates automatically).
 - Replies with a configurable **confirmation** that includes the operator's
   callsign for station identification.
-- **Automatic Portuguese for Brazilian stations**: check-in replies and the
-  whole certificate conversation switch to Portuguese automatically for any
-  callsign in Brazil's PP-PY block - no configuration needed, and English
-  wording elsewhere is unaffected.
+- **Automatic Portuguese for Brazilian stations**: check-in replies, the whole
+  certificate conversation, the public query commands (`STATUS`, `LAST`,
+  `TIME`, `ME`), and their `HELP <command>` entries all switch to Portuguese
+  automatically for any callsign in Brazil's PP-PY block - no configuration
+  needed. Admin-only commands and their results stay English-only regardless
+  of the caller.
 - **Event windows**: check-ins can be restricted to a scheduled time window, or
   the bot can run always-on with an auto-created daily event.
 - **Reliable messaging**: outgoing replies carry a line number and are

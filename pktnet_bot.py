@@ -192,6 +192,23 @@ CERT_MSG = {
 }
 CONFIRM_NAME_BUDGET = (30, 34)   # (EN, PT) max name length for the template above
 
+# Public query-command RESULTS (STATUS/LAST/TIME/ME) - distinct from
+# COMMAND_HELP above, which only covers what "HELP <command>" describes.
+# Same (English, Portuguese) shape, selected per-caller via is_br_call().
+# Admin-only results (USERS, and the STOP/PAUSE/etc. confirmations) are not
+# in here and stay English-only, matching COMMAND_HELP's own admin entries.
+QUERY_MSG = {
+    "no_active_net": ("No active net right now.", "Nenhuma Net ativa agora."),
+    "no_active_net_time": (
+        "No active net (no end time set).",
+        "Nenhuma Net ativa (sem hora de termino definida)."),
+    "last_none": ("{}: no check-ins yet", "{}: nenhum check-in ainda"),
+    "last_prefix": ("{} last: ", "{} ultimos: "),
+    "time_left": ("Time left: {}", "Tempo restante: {}"),
+    "me_head": ("You ({}) {} net(s):", "Voce ({}) {} Net(s):"),
+    "me_none": (" not checked in now", " sem check-in agora"),
+}
+
 
 def base_call(call):
     """Return the base callsign without its SSID (PP5MFA-7 -> PP5MFA)."""
@@ -1310,7 +1327,8 @@ class PktNetBot:
 
         if action == "status":
             if event is None:
-                self._enqueue_reply(source, "No active net right now.")
+                self._enqueue_reply(source, self._cmsg(
+                    source, "no_active_net", table=QUERY_MSG))
             else:
                 n = count_checkins(conn, event["event_id"])
                 self._enqueue_reply(source, "{}: {} check-in(s)".format(
@@ -1319,30 +1337,33 @@ class PktNetBot:
 
         if action == "last":
             if event is None:
-                self._enqueue_reply(source, "No active net right now.")
+                self._enqueue_reply(source, self._cmsg(
+                    source, "no_active_net", table=QUERY_MSG))
                 return
             calls = last_checkin_calls(conn, event["event_id"], 5)
             if not calls:
-                self._enqueue_reply(source, "{}: no check-ins yet".format(
-                    event["name"]))
+                self._enqueue_reply(source, self._cmsg(
+                    source, "last_none", event["name"], table=QUERY_MSG))
                 return
-            self._enqueue_pack(source, calls,
-                               prefix="{} last: ".format(event["name"]))
+            self._enqueue_pack(source, calls, prefix=self._cmsg(
+                source, "last_prefix", event["name"], table=QUERY_MSG))
             return
 
         if action == "time":
             if event is None:
-                self._enqueue_reply(source, "No active net (no end time set).")
+                self._enqueue_reply(source, self._cmsg(
+                    source, "no_active_net_time", table=QUERY_MSG))
                 return
             remaining = _iso_to_dt(event["end_utc"]) - now
-            self._enqueue_reply(source, "Time left: {}".format(
-                _fmt_duration(remaining)))
+            self._enqueue_reply(source, self._cmsg(
+                source, "time_left", _fmt_duration(remaining),
+                table=QUERY_MSG))
             return
 
         if action == "me":
             base = base_call(source)
             total = total_nets_by_base(conn, base)
-            head = "You ({}) {} net(s):".format(base, total)
+            head = self._cmsg(source, "me_head", base, total, table=QUERY_MSG)
             details = []
             if event is not None:
                 for cs, ts in checkins_by_base(conn, event["event_id"], base):
@@ -1351,7 +1372,8 @@ class PktNetBot:
             if details:
                 self._enqueue_pack(source, details, prefix=head + " ")
             else:
-                self._enqueue_reply(source, head + " not checked in now")
+                self._enqueue_reply(source, head + self._cmsg(
+                    source, "me_none", table=QUERY_MSG))
             return
 
         # --- admin commands ---------------------------------------------- #
@@ -1524,10 +1546,11 @@ class PktNetBot:
         prune_cert_flows(self.conn, deadline)
         return get_cert_flow(self.conn, source) is not None
 
-    def _cmsg(self, source, key, *args):
-        """Look up a CERT_MSG entry and format it in the right language for
-        this callsign (Portuguese for a Brazilian prefix, English otherwise)."""
-        en, pt = CERT_MSG[key]
+    def _cmsg(self, source, key, *args, table=CERT_MSG):
+        """Look up an entry in a bilingual message table (CERT_MSG by
+        default, or QUERY_MSG) and format it in the right language for this
+        callsign (Portuguese for a Brazilian prefix, English otherwise)."""
+        en, pt = table[key]
         text = pt if is_br_call(source) else en
         return text.format(*args) if args else text
 
