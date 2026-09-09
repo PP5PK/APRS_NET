@@ -58,7 +58,7 @@ admin_calls = PP5MFA
 
 # Callsigns to never respond to (automated APRS services), to avoid message
 # loops. Space/comma separated.
-ignore_calls = QRX ANSRVR WLNK-1
+ignore_calls = QRX ANSRVR WLNK
 # Anti-flood: if a sender exceeds this many messages per minute, stop responding
 # to it for rate_cooldown_min minutes. rate_limit_per_min = 0 disables it.
 rate_limit_per_min = 10
@@ -84,7 +84,7 @@ rx_timeout = 90
 # Seconds to wait after ACKing an incoming message before sending the reply, so
 # the operator's device processes the ACK first (they collide otherwise on RF).
 # Also spaces consecutive replies. 1-2 is a good range; 0 disables the delay.
-reply_delay = 2
+reply_delay =  1.5
 
 [db]
 path = /var/lib/pktnet/pktnet.db
@@ -137,5 +137,5 @@ from = aprs@pp5pk.net
 from_name = Daniel K. [APRS PKTNET / PKTQSO]
 # Optional: where replies should go (can be ANY address, e.g. a Gmail you read
 # often). Does not affect SPF/DKIM. Leave empty to reply to 'from'.
-reply_to = 
+reply_to = daniel.kondlatsch@gmail.com
 subject = Your APRS PKTNET participation certificate
