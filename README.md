@@ -54,6 +54,10 @@ only the Python standard library; the optional certificate feature adds
   handles duplicates automatically).
 - Replies with a configurable **confirmation** that includes the operator's
   callsign for station identification.
+- **Automatic Portuguese for Brazilian stations**: check-in replies and the
+  whole certificate conversation switch to Portuguese automatically for any
+  callsign in Brazil's PP-PY block - no configuration needed, and English
+  wording elsewhere is unaffected.
 - **Event windows**: check-ins can be restricted to a scheduled time window, or
   the bot can run always-on with an auto-created daily event.
 - **Reliable messaging**: outgoing replies carry a line number and are
@@ -299,6 +303,7 @@ contains your passcode.
 | `net` | `rate_limit_per_min` | `10` | Mute a sender that exceeds this many messages/minute (loop/flood protection). `0` disables. |
 | `net` | `rate_cooldown_min` | `10` | How long a rate-limited sender stays muted, in minutes. |
 | `net` | `paused_text` | `PKTNET under maintenance...` | Reply sent to check-ins while the net is paused. |
+| `net` | `checkin_hint_pt`, `checked_text_pt`, `confirm_text_pt`, `dup_text_pt`, `closed_text_pt`, `paused_text_pt` | *(built-in Portuguese)* | Portuguese wording for the six rows above, used automatically for a PP-PY callsign - no need to set these unless you want to change the wording; each is independent of its English counterpart. |
 | `room` | `room_call` | *(empty)* | Group-chat room callsign (e.g. `PKTQSO`). Empty disables the room. |
 | `room` | `timeout_min` | `4320` | Drop room members idle for this many minutes (3 days). |
 | `room` | `max_members` | `60` | Maximum members in the room. |
@@ -389,7 +394,7 @@ the operator can see the order and notice if a part went missing.
 | `ME` | How many nets your base callsign has joined (all SSIDs counted together), plus your per-SSID check-in times in the active net. |
 | `RESEND` | Re-generate and re-send your certificate for your latest net to the email on file (only when `[cert]` is enabled). |
 | `RESET` | Restart the certificate data collection from the start (asks your email again) - useful if a message was lost and the flow got stuck (only when `[cert]` is enabled). |
-| `HELP` / `HELP <command>` | With no argument, lists the commands available to you — starting with the check-in keyword itself (`checkin_keyword`, `CHECK` by default), since that's the one thing every new operator needs before anything else — then admins get a separate `Admin: ...` message with the admin-only ones, so the growing admin list doesn't crowd out the public one. With a command name (`HELP EXTEND`), replies with a one-line usage summary for that command; asking about an admin command you can't use replies the same as an unknown command, so it isn't a way to discover them. |
+| `HELP` / `HELP <command>` | With no argument, lists the commands available to you — starting with the check-in keyword itself (`checkin_keyword`, `CHECK` by default), since that's the one thing every new operator needs before anything else — then admins get a separate `Admin: ...` message with the admin-only ones, so the growing admin list doesn't crowd out the public one. With a command name (`HELP EXTEND`), replies with a one-line usage summary for that command; asking about an admin command you can't use replies the same as an unknown command, so it isn't a way to discover them. `HELP <command>` for a **public** command (and the check-in keyword itself) is translated automatically for a PP-PY callsign, same as the rest of the check-in/certificate flow; admin commands stay English-only, even for a Brazilian admin. |
 
 **Admin** — only callsigns in `admin_calls` (matched by base call):
 
@@ -441,7 +446,12 @@ bulk).
 #### Interactive flow (over APRS)
 
 When `[cert] enable = true`, the first time an operator checks in to a net the
-bot offers a certificate and walks them through it entirely by APRS message:
+bot offers a certificate and walks them through it entirely by APRS message.
+Every prompt below - and the check-in replies described earlier - switches to
+Portuguese automatically for a callsign in Brazil's PP-PY block (see
+`checkin_hint_pt` and friends in the [config table](#configuration) to
+customize the Portuguese wording itself). The English versions below are
+shown for reference; what an operator actually sees depends on their call:
 
 1. "Want a certificate? Reply your email (only to send it) or NO".
 2. The operator replies an email. The bot looks their name up in `users.db`

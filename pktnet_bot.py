@@ -104,13 +104,23 @@ HELP_ADMIN = ["USERS", "START", "STOP", "PAUSE", "RESTART", "EXTEND"]
 # One-line syntax/usage summary per command, for "HELP <COMMAND>". Every
 # value must fit in a single APRS message (APRS_MAX_TEXT, 67 chars).
 COMMAND_HELP = {
-    "HELP": "HELP lists commands. HELP <CMD> shows its syntax.",
-    "STATUS": "STATUS shows the net name and current check-in count.",
-    "LAST": "LAST shows the last 5 check-ins.",
-    "TIME": "TIME shows how much time is left in the net.",
-    "ME": "ME shows your check-ins and your last CHECK time.",
-    "RESEND": "RESEND re-sends your certificate for the latest net.",
-    "RESET": "RESET restarts your certificate data collection.",
+    # Public commands: (English, Portuguese) - picked per-caller by is_br_call().
+    "HELP": ("HELP lists commands. HELP <CMD> shows its syntax.",
+             "HELP lista os comandos. HELP <CMD> mostra a sintaxe."),
+    "STATUS": ("STATUS shows the net name and current check-in count.",
+               "STATUS mostra o nome da Net e quantos check-ins ha."),
+    "LAST": ("LAST shows the last 5 check-ins.",
+             "LAST mostra os ultimos 5 check-ins."),
+    "TIME": ("TIME shows how much time is left in the net.",
+             "TIME mostra quanto tempo falta para a Net acabar."),
+    "ME": ("ME shows your check-ins and your last CHECK time.",
+           "ME mostra seus check-ins e o horario do ultimo CHECK."),
+    "RESEND": ("RESEND re-sends your certificate for the latest net.",
+               "RESEND reenvia seu certificado da ultima Net."),
+    "RESET": ("RESET restarts your certificate data collection.",
+              "RESET reinicia a coleta de dados do certificado."),
+    # Admin commands: English only (unlike the public list above, these are
+    # not translated - only admin_calls can reach them anyway).
     "USERS": "USERS lists every callsign checked into the active net.",
     "START": "START [name] starts a net for today (until 2359z).",
     "STOP": "STOP ends the active net now.",
@@ -124,10 +134,76 @@ COMMAND_HELP = {
     ],
 }
 
+# Certificate-flow prompts, in English and Portuguese (no diacritics - APRS
+# text is not reliably UTF-8 across radios/TNCs, matching the rest of the
+# bot's own PT input handling, e.g. accepting "sim"/"nao"). Selected
+# automatically per operator via is_br_call() - see _cmsg().
+CERT_MSG = {
+    "want_cert": (
+        "Want a certificate? Reply your email (only to send it) or NO",
+        "Quer certificado? Responda seu email (so p/ envia-lo) ou NAO"),
+    "reuse_prompt": (
+        "Use previous info? YES / NO",
+        "Usar dados anteriores? SIM / NAO"),
+    "reuse_combined": ("Prev: {} / {}", "Ant: {} / {}"),
+    "reuse_prev_name": ("Prev name: {}", "Nome ant.: {}"),
+    "reuse_prev_email": ("Prev email: {}", "Email ant.: {}"),
+    "reply_yes_no": ("Reply YES or NO", "Responda SIM ou NAO"),
+    "valid_email_prompt": (
+        "Please reply a valid email or NO",
+        "Responda um email valido ou NAO"),
+    "confirm_name_reject": (
+        "That is an email, not a name. Reply YES or send your name.",
+        "Isso e um email, nao um nome. Responda SIM ou envie seu nome."),
+    "await_name_reject": (
+        "That looks like an email, not a name. Send your name instead.",
+        "Isso parece um email, nao um nome. Envie seu nome."),
+    "await_name_prompt": (
+        "Send the name for the certificate",
+        "Envie o nome para o certificado"),
+    "cancel_confirm": ("OK, no certificate. 73!", "OK, sem certificado. 73!"),
+    "gen_fail": (
+        "Sorry, could not build the certificate right now.",
+        "Desculpe, nao foi possivel gerar o certificado agora."),
+    "sent_to": ("Sent to {}! 73", "Enviado para {}! 73"),
+    "cert_ready": ("Certificate ready as {}! 73", "Certificado pronto como {}! 73"),
+    "reset_restart": (
+        "Restarting. Reply your email (only to send it) or NO",
+        "Reiniciando. Responda seu email (so p/ envia-lo) ou NAO"),
+    "reset_no_active": ("No active net right now.", "Nenhuma Net ativa agora."),
+    "reset_no_checkin": ("Do a check-in first.", "Faca o check-in primeiro."),
+    "resend_no_contact": (
+        "No certificate on file. Do a check-in first.",
+        "Nenhum certificado salvo. Faca o check-in primeiro."),
+    "resend_no_checkin": (
+        "No check-in found to resend.",
+        "Nenhum check-in encontrado para reenviar."),
+    "resend_sent": ("Resent to {}! 73", "Reenviado para {}! 73"),
+    "cert_unavailable": (
+        "Certificates are not available.",
+        "Certificados nao estao disponiveis."),
+    # Shorter wording than a plain "Name: {}. Reply YES..." sentence, which
+    # can exceed the 67-char APRS limit with a long name from the RadioID
+    # lookup - the confirm_name_budget below is the max name length that
+    # still fits this exact template in each language.
+    "confirm_name_prompt": (
+        "Use \"{}\"? YES, or send a different name",
+        "Usar \"{}\"? SIM, ou envie outro nome"),
+}
+CONFIRM_NAME_BUDGET = (30, 34)   # (EN, PT) max name length for the template above
+
 
 def base_call(call):
     """Return the base callsign without its SSID (PP5MFA-7 -> PP5MFA)."""
     return call.split("-", 1)[0].upper().strip()
+
+
+def is_br_call(call):
+    """True if the base callsign's prefix falls in Brazil's amateur radio
+    block (PP through PY), e.g. PP5PK, PY2ABC, PU5KOD. Used to switch the
+    check-in / certificate messages to Portuguese automatically."""
+    base = base_call(call)
+    return len(base) >= 2 and base[0] == "P" and "P" <= base[1] <= "Y"
 
 
 def _parse_calls(raw):
@@ -288,13 +364,25 @@ def load_config(path):
                                                fallback=True),
         "confirm_text": cfg.get("net", "confirm_text",
                                 fallback="Check-in OK {time}z. 73 de PP5PK"),
+        "confirm_text_pt": cfg.get("net", "confirm_text_pt",
+                                   fallback="Check-in OK {time}z. 73 de "
+                                            "PP5PK"),
         "dup_text": cfg.get("net", "dup_text",
                             fallback="Already registered {time}z. 73 de PP5PK"),
+        "dup_text_pt": cfg.get("net", "dup_text_pt",
+                               fallback="Ja registrado {time}z. 73 de "
+                                        "PP5PK"),
         "closed_text": cfg.get("net", "closed_text",
                                fallback="PKTNET not active. 73 de PP5PK"),
+        "closed_text_pt": cfg.get("net", "closed_text_pt",
+                                  fallback="PKTNET nao esta ativo. 73 de "
+                                           "PP5PK"),
         "paused_text": cfg.get("net", "paused_text",
                                fallback="PKTNET under maintenance, try again "
                                         "in a few minutes."),
+        "paused_text_pt": cfg.get("net", "paused_text_pt",
+                                  fallback="PKTNET em manutencao, tente "
+                                           "novamente em alguns minutos."),
         "admin_calls": _parse_calls(cfg.get("net", "admin_calls", fallback="")),
         # Callsigns to never respond to (no ACK, no reply) - typically automated
         # APRS services, to avoid message loops.
@@ -310,11 +398,17 @@ def load_config(path):
         "checkin_hint": cfg.get("net", "checkin_hint",
                                 fallback="Send CHECK to join the net. 73 de "
                                          "PP5PK"),
+        "checkin_hint_pt": cfg.get("net", "checkin_hint_pt",
+                                   fallback="Envie CHECK para entrar na "
+                                            "rede. 73 de PP5PK"),
         # Reply when a non-command word arrives from someone who has ALREADY
         # checked into the active net ({time} = their check-in, UTC).
         "checked_text": cfg.get("net", "checked_text",
                                 fallback="Check-in completed on {time}. "
                                          "Send HELP for commands"),
+        "checked_text_pt": cfg.get("net", "checked_text_pt",
+                                   fallback="Check-in feito as {time}. "
+                                            "Envie HELP para ver comandos"),
 
         # Group chat room (optional). Empty room_call disables the room.
         "room_call": cfg.get("room", "room_call", fallback="").upper().strip(),
@@ -997,15 +1091,17 @@ class PktNetBot:
             self._process_checkin(source, text)
             return
         checked = self._checkin_time_for(source)
+        pt = is_br_call(source)
+        hint = self.cfg["checkin_hint_pt"] if pt else self.cfg["checkin_hint"]
         if checked:
             # Already checked into the active net: acknowledge it (with the
             # check-in time) instead of repeating the "send CHECK" hint.
             LOG.info("Post-check message from %s: %r", source, text)
-            self._enqueue_reply(source, self.cfg["checked_text"].format(
-                time=checked))
-        elif self.cfg["checkin_hint"]:
+            tpl = self.cfg["checked_text_pt"] if pt else self.cfg["checked_text"]
+            self._enqueue_reply(source, tpl.format(time=checked))
+        elif hint:
             LOG.info("Non-check message from %s: %r", source, text)
-            self._enqueue_reply(source, self.cfg["checkin_hint"])
+            self._enqueue_reply(source, hint)
         else:
             LOG.info("Ignoring non-check message from %s: %r", source, text)
 
@@ -1122,8 +1218,13 @@ class PktNetBot:
             keyword = self.cfg["checkin_keyword"]
             if query:
                 if query == keyword:
-                    self._enqueue_reply(source, "{} joins the net and logs "
-                                        "your check-in.".format(keyword))
+                    if is_br_call(source):
+                        msg = "{} entra na rede e registra seu " \
+                              "check-in.".format(keyword)
+                    else:
+                        msg = "{} joins the net and logs your " \
+                              "check-in.".format(keyword)
+                    self._enqueue_reply(source, msg)
                     return
                 cert_off = not self.cfg["cert_enable"]
                 hidden = cert_off and query in ("RESEND", "RESET")
@@ -1131,13 +1232,21 @@ class PktNetBot:
                 if query in COMMAND_HELP and not hidden and not (
                         admin_only and not is_admin):
                     text = COMMAND_HELP[query]
+                    if isinstance(text, tuple):
+                        # Public command: (English, Portuguese) - admin-only
+                        # entries stay a single string/list, English only.
+                        text = text[1] if is_br_call(source) else text[0]
                     if isinstance(text, list):
                         self._enqueue_numbered(source, text)
                     else:
                         self._enqueue_reply(source, text)
                 else:
-                    self._enqueue_reply(source, "Unknown command. Send "
-                                                "HELP for the list.")
+                    if is_br_call(source):
+                        unknown = "Comando desconhecido. Envie HELP para " \
+                                 "a lista."
+                    else:
+                        unknown = "Unknown command. Send HELP for the list."
+                    self._enqueue_reply(source, unknown)
                 return
 
             # The check-in keyword isn't a COMMAND_ALIASES entry (it's handled
@@ -1165,40 +1274,38 @@ class PktNetBot:
 
         if action == "reset":
             if not self.cfg["cert_enable"]:
-                self._enqueue_reply(source, "Certificates are not available.")
+                self._enqueue_reply(source, self._cmsg(source, "cert_unavailable"))
                 return
             self._reset_cert_flow(source)
             return
 
         if action == "resend":
             if not self.cfg["cert_enable"]:
-                self._enqueue_reply(source, "Certificates are not available.")
+                self._enqueue_reply(source, self._cmsg(source, "cert_unavailable"))
                 return
             base = base_call(source)
             contact = get_cert_contact(conn, base)
             if not (contact and contact["email"]):
                 self._enqueue_reply(
-                    source, "No certificate on file. Do a check-in first.")
+                    source, self._cmsg(source, "resend_no_contact"))
                 return
             row = conn.execute(
                 "SELECT event_id FROM checkins WHERE callsign = ? OR "
                 "callsign LIKE ? ORDER BY ts_utc DESC LIMIT 1",
                 (base, base + "-%")).fetchone()
             if row is None:
-                self._enqueue_reply(source, "No check-in found to resend.")
+                self._enqueue_reply(source, self._cmsg(source, "resend_no_checkin"))
                 return
             name, email = contact["name"], contact["email"]
             path = self._generate_cert(row["event_id"], source, base, name)
             if not path:
-                self._enqueue_reply(source, "Sorry, could not build the "
-                                            "certificate right now.")
+                self._enqueue_reply(source, self._cmsg(source, "gen_fail"))
                 return
             if self.cfg["email_enable"] and self.cfg["email_from"]:
                 self._send_cert_email_async(email, name, path)
-                self._enqueue_reply(source, "Resent to {}! 73".format(email))
+                self._enqueue_reply(source, self._cmsg(source, "resend_sent", email))
             else:
-                self._enqueue_reply(source, "Certificate ready as {}! 73".format(
-                    name))
+                self._enqueue_reply(source, self._cmsg(source, "cert_ready", name))
             return
 
         if action == "status":
@@ -1370,17 +1477,20 @@ class PktNetBot:
         now = datetime.now(timezone.utc)
         now_iso = now.isoformat()
         hhmm = now.strftime("%H%M")
+        pt = is_br_call(source)
 
         event = get_active_event(self.conn, now_iso)
 
         if event is not None and event["status"] == "paused":
             LOG.info("Net paused - check-in from %s deferred", source)
-            self._enqueue_reply(source, self.cfg["paused_text"])
+            self._enqueue_reply(source, self.cfg["paused_text_pt"] if pt
+                                else self.cfg["paused_text"])
             return
 
         if event is None and self.cfg["require_active_event"]:
             LOG.info("No active event - check-in from %s ignored", source)
-            self._enqueue_reply(source, self.cfg["closed_text"].format(time=hhmm))
+            closed_tpl = self.cfg["closed_text_pt"] if pt else self.cfg["closed_text"]
+            self._enqueue_reply(source, closed_tpl.format(time=hhmm))
             return
 
         if event is None:
@@ -1389,7 +1499,10 @@ class PktNetBot:
 
         is_new = record_checkin(self.conn, event["event_id"], source,
                                 now_iso, text)
-        template = self.cfg["confirm_text"] if is_new else self.cfg["dup_text"]
+        if is_new:
+            template = self.cfg["confirm_text_pt"] if pt else self.cfg["confirm_text"]
+        else:
+            template = self.cfg["dup_text_pt"] if pt else self.cfg["dup_text"]
         reply = template.format(time=hhmm, call=source, event=event["name"])
         if is_new:
             LOG.info("Logged %s into event #%s (%s)",
@@ -1411,6 +1524,23 @@ class PktNetBot:
         prune_cert_flows(self.conn, deadline)
         return get_cert_flow(self.conn, source) is not None
 
+    def _cmsg(self, source, key, *args):
+        """Look up a CERT_MSG entry and format it in the right language for
+        this callsign (Portuguese for a Brazilian prefix, English otherwise)."""
+        en, pt = CERT_MSG[key]
+        text = pt if is_br_call(source) else en
+        return text.format(*args) if args else text
+
+    def _confirm_name_prompt(self, source, name):
+        """The 'use this name?' prompt, with the name trimmed if needed so
+        the message can never exceed the APRS limit (see CONFIRM_NAME_BUDGET).
+        The full, untrimmed name is still what gets saved and printed on the
+        certificate - only the on-screen prompt shortens it."""
+        pt = is_br_call(source)
+        budget = CONFIRM_NAME_BUDGET[1 if pt else 0]
+        shown = name if len(name) <= budget else name[:budget]
+        return self._cmsg(source, "confirm_name_prompt", shown)
+
     def _flow_send(self, source, text):
         """Send a certificate-flow prompt and remember it, so it can be resent
         if the operator goes quiet (a lost APRS message)."""
@@ -1426,7 +1556,7 @@ class PktNetBot:
         event = get_active_event(conn, now_iso)
         if event is None:
             clear_cert_flow(conn, source)
-            self._enqueue_reply(source, "No active net right now.")
+            self._enqueue_reply(source, self._cmsg(source, "reset_no_active"))
             return
         base = base_call(source)
         row = conn.execute(
@@ -1435,12 +1565,11 @@ class PktNetBot:
             (event["event_id"], base, base + "-%")).fetchone()
         if row is None:
             clear_cert_flow(conn, source)
-            self._enqueue_reply(source, "Do a check-in first.")
+            self._enqueue_reply(source, self._cmsg(source, "reset_no_checkin"))
             return
         set_cert_flow(conn, source, event["event_id"], "await_email", None,
                       None, now_iso)
-        self._flow_send(source, "Restarting. Reply your email (only to send "
-                                "it) or NO")
+        self._flow_send(source, self._cmsg(source, "reset_restart"))
 
     def _service_cert_flows(self, now):
         """Resend the last prompt to operators who have gone quiet, and drop
@@ -1490,22 +1619,20 @@ class PktNetBot:
                           contact["name"], now_iso)
             nm = contact["name"] or "?"
             em = contact["email"]
-            lines = ["Use previous info? YES / NO"]
-            combined = "Prev: {} / {}".format(nm, em)
+            prompt = self._cmsg(source, "reuse_prompt")
+            lines = [prompt]
+            combined = self._cmsg(source, "reuse_combined", nm, em)
             if len(combined) <= APRS_MAX_TEXT - PART_RESERVE:
                 lines.append(combined)
             else:
-                lines.append("Prev name: " + nm)
-                lines.append("Prev email: " + em)
+                lines.append(self._cmsg(source, "reuse_prev_name", nm))
+                lines.append(self._cmsg(source, "reuse_prev_email", em))
             self._enqueue_numbered(source, lines)
-            set_cert_flow_prompt(conn, source, "Use previous info? YES / NO",
-                                 now_iso)
+            set_cert_flow_prompt(conn, source, prompt, now_iso)
         else:
             set_cert_flow(conn, source, event_id, "await_email", None, None,
                           now_iso)
-            self._flow_send(
-                source, "Want a certificate? Reply your email (only to send "
-                "it) or NO")
+            self._flow_send(source, self._cmsg(source, "want_cert"))
 
     def _handle_cert_flow(self, source, text):
         conn = self.conn
@@ -1533,26 +1660,24 @@ class PktNetBot:
             elif low in ("no", "nao", "n"):
                 set_cert_flow(conn, source, row["event_id"], "await_email",
                               None, None, now_iso)
-                self._flow_send(
-                    source, "Want a certificate? Reply your email (only to "
-                    "send it) or NO")
+                self._flow_send(source, self._cmsg(source, "want_cert"))
             elif looks_like_email(t):
                 self._after_cert_email(source, row["event_id"], t)
             else:
-                self._flow_send(source, "Reply YES or NO")
+                self._flow_send(source, self._cmsg(source, "reply_yes_no"))
             return
 
         # In the remaining steps, NO cancels the certificate.
         if low in ("no", "nao", "n", "cancel"):
             clear_cert_flow(conn, source)
-            self._enqueue_reply(source, "OK, no certificate. 73!")
+            self._enqueue_reply(source, self._cmsg(source, "cancel_confirm"))
             return
 
         if state == "await_email":
             if looks_like_email(t):
                 self._after_cert_email(source, row["event_id"], t)
             else:
-                self._flow_send(source, "Please reply a valid email or NO")
+                self._flow_send(source, self._cmsg(source, "valid_email_prompt"))
             return
 
         if state == "confirm_name":
@@ -1560,9 +1685,8 @@ class PktNetBot:
                 name = row["name_cand"]
             else:
                 if looks_like_email(t):
-                    self._flow_send(
-                        source, "That is an email, not a name. Reply YES "
-                        "or send your name.")
+                    self._flow_send(source,
+                                    self._cmsg(source, "confirm_name_reject"))
                     return
                 name = t[:40]
             self._finish_cert(source, row["event_id"], row["email"], name)
@@ -1570,9 +1694,8 @@ class PktNetBot:
 
         if state == "await_name":
             if looks_like_email(t):
-                self._flow_send(
-                    source, "That looks like an email, not a name. Send "
-                    "your name instead.")
+                self._flow_send(source,
+                                self._cmsg(source, "await_name_reject"))
                 return
             self._finish_cert(source, row["event_id"], row["email"], t[:40])
             return
@@ -1586,13 +1709,11 @@ class PktNetBot:
         if name:
             set_cert_flow(conn, source, event_id, "confirm_name", email, name,
                           now_iso)
-            self._flow_send(
-                source, "Name: {}. Reply YES to use it, or send the name"
-                .format(name))
+            self._flow_send(source, self._confirm_name_prompt(source, name))
         else:
             set_cert_flow(conn, source, event_id, "await_name", email, None,
                           now_iso)
-            self._flow_send(source, "Send the name for the certificate")
+            self._flow_send(source, self._cmsg(source, "await_name_prompt"))
 
     def _finish_cert(self, source, event_id, email, name):
         conn = self.conn
@@ -1603,17 +1724,15 @@ class PktNetBot:
         clear_cert_flow(conn, source)
         path = self._generate_cert(event_id, source, base, name)
         if not path:
-            self._enqueue_reply(source, "Sorry, could not build the "
-                                        "certificate right now.")
+            self._enqueue_reply(source, self._cmsg(source, "gen_fail"))
             return
         LOG.info("Certificate for %s (%s) -> %s [email: %s]",
                  base, name, path, email)
         if self.cfg["email_enable"] and email and self.cfg["email_from"]:
             self._send_cert_email_async(email, name, path)
-            self._enqueue_reply(source, "Sent to {}! 73".format(email))
+            self._enqueue_reply(source, self._cmsg(source, "sent_to", email))
         else:
-            self._enqueue_reply(source, "Certificate ready as {}! 73".format(
-                name))
+            self._enqueue_reply(source, self._cmsg(source, "cert_ready", name))
 
     def _send_cert_email_async(self, to_addr, name, pdf_path):
         """Send the certificate email in a background thread so the SMTP round
