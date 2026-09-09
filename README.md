@@ -389,7 +389,7 @@ the operator can see the order and notice if a part went missing.
 | `ME` | How many nets your base callsign has joined (all SSIDs counted together), plus your per-SSID check-in times in the active net. |
 | `RESEND` | Re-generate and re-send your certificate for your latest net to the email on file (only when `[cert]` is enabled). |
 | `RESET` | Restart the certificate data collection from the start (asks your email again) - useful if a message was lost and the flow got stuck (only when `[cert]` is enabled). |
-| `HELP` / `HELP <command>` | With no argument, lists the commands available to you — admins get the public list and a separate `Admin: ...` message with the admin-only ones, so the growing admin list doesn't crowd out the public one. With a command name (`HELP EXTEND`), replies with a one-line usage summary for that command; asking about an admin command you can't use replies the same as an unknown command, so it isn't a way to discover them. |
+| `HELP` / `HELP <command>` | With no argument, lists the commands available to you — starting with the check-in keyword itself (`checkin_keyword`, `CHECK` by default), since that's the one thing every new operator needs before anything else — then admins get a separate `Admin: ...` message with the admin-only ones, so the growing admin list doesn't crowd out the public one. With a command name (`HELP EXTEND`), replies with a one-line usage summary for that command; asking about an admin command you can't use replies the same as an unknown command, so it isn't a way to discover them. |
 
 **Admin** — only callsigns in `admin_calls` (matched by base call):
 

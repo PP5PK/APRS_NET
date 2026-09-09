@@ -1119,7 +1119,12 @@ class PktNetBot:
         # --- public commands --------------------------------------------- #
         if action == "help":
             query = arg.strip().strip("[]").strip().upper()
+            keyword = self.cfg["checkin_keyword"]
             if query:
+                if query == keyword:
+                    self._enqueue_reply(source, "{} joins the net and logs "
+                                        "your check-in.".format(keyword))
+                    return
                 cert_off = not self.cfg["cert_enable"]
                 hidden = cert_off and query in ("RESEND", "RESET")
                 admin_only = query in HELP_ADMIN
@@ -1135,7 +1140,11 @@ class PktNetBot:
                                                 "HELP for the list.")
                 return
 
-            cmds = list(HELP_PUBLIC)
+            # The check-in keyword isn't a COMMAND_ALIASES entry (it's handled
+            # separately and can be renamed via checkin_keyword), so it isn't
+            # in HELP_PUBLIC - list it first anyway, since it's the one thing
+            # every new operator needs before anything else.
+            cmds = [keyword] + list(HELP_PUBLIC)
             if not self.cfg["cert_enable"]:
                 cmds = [c for c in cmds if c not in ("RESEND", "RESET")]
 
