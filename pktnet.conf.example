@@ -84,7 +84,7 @@ rx_timeout = 90
 # Seconds to wait after ACKing an incoming message before sending the reply, so
 # the operator's device processes the ACK first (they collide otherwise on RF).
 # Also spaces consecutive replies. 1-2 is a good range; 0 disables the delay.
-reply_delay =  1.5
+reply_delay = 1.5
 
 [db]
 path = /var/lib/pktnet/pktnet.db
