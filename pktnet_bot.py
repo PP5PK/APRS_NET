@@ -2103,28 +2103,99 @@ def main():
     common.add_argument("-v", "--verbose", action="store_true",
                         default=argparse.SUPPRESS, help="enable debug logging")
 
+    # RawDescriptionHelpFormatter keeps the indentation/line breaks in the
+    # "Examples:" blocks below exactly as written, instead of argparse
+    # rewrapping them into a single paragraph.
+    class _SmartFormatter(argparse.HelpFormatter):
+        """Auto-wrap plain prose (the per-command description) as usual, but
+        leave any text with its own line breaks (the "Examples:" epilogs)
+        exactly as written instead of argparse folding it into one line."""
+        def _fill_text(self, text, width, indent):
+            if "\n" in text:
+                return "".join(indent + line for line in text.splitlines(True))
+            return super()._fill_text(text, width, indent)
+    RAW = _SmartFormatter
+
     parser = argparse.ArgumentParser(
-        description="PKTNET APRS net check-in bot", parents=[common])
+        description="PKTNET APRS net check-in bot", parents=[common],
+        formatter_class=RAW,
+        epilog="Examples:\n"
+               "  pktnet_bot.py run\n"
+               "  pktnet_bot.py addevent \"PKTNET #1\" "
+               "2026-06-25T00:00:00Z 2026-06-25T23:59:59Z\n"
+               "  pktnet_bot.py events\n"
+               "  pktnet_bot.py editevent --extend 30\n"
+               "  pktnet_bot.py endevent\n"
+               "  pktnet_bot.py checkins 3\n"
+               "  pktnet_bot.py delevent 3 -y\n"
+               "\n"
+               "Run 'pktnet_bot.py <command> --help' for that command's own "
+               "syntax and examples.")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("run", parents=[common], help="run the daemon")
+    sub.add_parser(
+        "run", parents=[common], help="run the daemon", formatter_class=RAW,
+        description="Start the bot: connect to APRS-IS, listen for "
+                    "check-ins and remote-control commands, and keep "
+                    "running until stopped (Ctrl-C or SIGTERM).",
+        epilog="Examples:\n"
+               "  pktnet_bot.py run\n"
+               "  pktnet_bot.py -c /etc/pktnet/pktnet.conf run -v")
 
-    p_add = sub.add_parser("addevent", parents=[common],
-                           help="register a net event window (UTC)")
+    p_add = sub.add_parser(
+        "addevent", parents=[common], formatter_class=RAW,
+        help="register a net event window (UTC)",
+        description="Register a new net event window. Check-ins only log "
+                    "while 'now' falls inside [start, end) - see "
+                    "require_active_event in the README for open vs "
+                    "scheduled mode.",
+        epilog="Examples:\n"
+               "  pktnet_bot.py addevent \"PKTNET #1\" "
+               "2026-06-25T00:00:00Z 2026-06-25T23:59:59Z\n"
+               "  pktnet_bot.py addevent \"Weekend Activation\" "
+               "2026-06-27T20:00:00Z 2026-06-28T04:00:00Z")
     p_add.add_argument("name", help="event name, e.g. 'APRS PKTNET #1'")
     p_add.add_argument("start", help="start time, ISO 8601 UTC (e.g. 2026-06-25T00:00:00Z)")
     p_add.add_argument("end", help="end time, ISO 8601 UTC (e.g. 2026-06-25T23:59:59Z)")
 
-    sub.add_parser("events", parents=[common], help="list registered events")
+    sub.add_parser(
+        "events", parents=[common], help="list registered events",
+        formatter_class=RAW,
+        description="List every registered event: id, name, start/end "
+                    "(UTC), and check-in count.",
+        epilog="Examples:\n"
+               "  pktnet_bot.py events")
 
-    p_end = sub.add_parser("endevent", parents=[common],
-                           help="end a net now (defaults to the active event)")
+    p_end = sub.add_parser(
+        "endevent", parents=[common], formatter_class=RAW,
+        help="end a net now (defaults to the active event)",
+        description="Close a net right now (status=closed, end_utc=now). "
+                    "Use editevent instead if you just want to push the end "
+                    "time later without closing the net.",
+        epilog="Examples:\n"
+               "  pktnet_bot.py endevent      # ends the active/most "
+               "recent event\n"
+               "  pktnet_bot.py endevent 5    # ends event #5 specifically")
     p_end.add_argument("event_id", nargs="?", type=int,
                        help="event id (defaults to the active/most recent event)")
 
-    p_edit = sub.add_parser("editevent", parents=[common],
-                            help="change an event's end time (extend or "
-                                 "shorten without closing it)")
+    p_edit = sub.add_parser(
+        "editevent", parents=[common], formatter_class=RAW,
+        help="change an event's end time (extend or shorten without "
+             "closing it)",
+        description="Change an event's end time WITHOUT closing it - the "
+                    "net stays open (or paused). Use --extend for a "
+                    "relative change (add/subtract minutes) or --end for "
+                    "an absolute new time. This is the CLI equivalent of "
+                    "the APRS EXTEND admin command.",
+        epilog="Examples:\n"
+               "  pktnet_bot.py editevent --extend 30     # push the end "
+               "30 min later\n"
+               "  pktnet_bot.py editevent --extend -15    # pull the end "
+               "15 min earlier\n"
+               "  pktnet_bot.py editevent --end 2026-06-25T22:00:00Z\n"
+               "  pktnet_bot.py editevent 5 --extend 30   # target event "
+               "#5 specifically")
     p_edit.add_argument("event_id", nargs="?", type=int,
                         help="event id (defaults to the active/most recent "
                              "event)")
@@ -2135,14 +2206,27 @@ def main():
                         help="add this many minutes to the current end time "
                              "(negative to shorten)")
 
-    p_del = sub.add_parser("delevent", parents=[common],
-                           help="delete a net and its check-ins")
+    p_del = sub.add_parser(
+        "delevent", parents=[common], formatter_class=RAW,
+        help="delete a net and its check-ins",
+        description="Permanently delete an event and all of its "
+                    "check-ins. This cannot be undone.",
+        epilog="Examples:\n"
+               "  pktnet_bot.py delevent 3       # asks for confirmation\n"
+               "  pktnet_bot.py delevent 3 -y    # skip the confirmation "
+               "prompt")
     p_del.add_argument("event_id", type=int, help="event id to delete")
     p_del.add_argument("-y", "--yes", action="store_true",
                        help="do not ask for confirmation")
 
-    p_ck = sub.add_parser("checkins", parents=[common],
-                          help="list check-ins for an event")
+    p_ck = sub.add_parser(
+        "checkins", parents=[common], help="list check-ins for an event",
+        formatter_class=RAW,
+        description="List check-ins for one event: callsign and "
+                    "timestamp (UTC), in the order they checked in.",
+        epilog="Examples:\n"
+               "  pktnet_bot.py checkins      # most recent event\n"
+               "  pktnet_bot.py checkins 3    # event #3 specifically")
     p_ck.add_argument("event_id", nargs="?", type=int,
                       help="event id (defaults to the most recent event)")
 
