@@ -128,14 +128,15 @@ FONT_NAME = "Playfair-SemiBoldItalic.ttf"
 FONT_EVENT = "Montserrat-SemiBold.ttf"
 FONT_VALUE = "Montserrat-Medium.ttf"
 
+# The settings below refer to Net #01 APRS Net #01
 # Field placement as fractions of the template width/height. Tuned to
 # pktnet_template.png (1248x832); it scales with any same-proportion template.
 # _cy = Vertical position, lower value goes up, higher value goes down
 # _size = font size.
 LAYOUT = {
     "cx": 0.497,            # horizontal centre of the card frame
-    "callsign_cy": 0.365, "name_cy": 0.470, "event_cy": 0.575,
-    "value_cy": 0.665, "date_x": 0.352, "time_x": 0.628,
+    "callsign_cy": 0.350, "name_cy": 0.470, "event_cy": 0.583,
+    "value_cy": 0.680, "date_x": 0.352, "time_x": 0.628,
     "callsign_maxw": 0.62, "name_maxw": 0.58, "event_maxw": 0.62,
     "callsign_size": 120, "name_size": 48, "event_size": 34, "value_size": 24,
 }
