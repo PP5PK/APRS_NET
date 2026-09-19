@@ -115,15 +115,15 @@ COMMAND_HELP = {
     # Public commands: (English, Portuguese) - picked per-caller by is_br_call().
     "HELP": ("HELP lists commands. HELP <CMD> shows its syntax.",
              "HELP lista os comandos. HELP <CMD> mostra a sintaxe."),
-    "STATUS": ("STATUS shows the net name and current check-in count.",
+    "STATUS": ("STATUS shows the Net name and current check-in count.",
                "STATUS mostra o nome da Net e quantos check-ins ha."),
     "LAST": ("LAST shows the last 5 check-ins.",
              "LAST mostra os ultimos 5 check-ins."),
-    "TIME": ("TIME shows how much time is left in the net.",
+    "TIME": ("TIME shows how much time is left in the Net.",
              "TIME mostra quanto tempo falta para a Net acabar."),
     "ME": ("ME shows your check-ins and your last CHECK time.",
            "ME mostra seus check-ins e o horario do ultimo CHECK."),
-    "RESEND": ("RESEND re-sends your certificate for the latest net.",
+    "RESEND": ("RESEND re-sends your certificate for the latest Net.",
                "RESEND reenvia seu certificado da ultima Net."),
     "RESET": ("RESET restarts your certificate data collection.",
               "RESET reinicia a coleta de dados do certificado."),
@@ -148,8 +148,8 @@ COMMAND_HELP = {
 # automatically per operator via is_br_call() - see _cmsg().
 CERT_MSG = {
     "want_cert": (
-        "Want a certificate? Reply your email (only to send it) or NO",
-        "Quer certificado? Responda seu email (so p/ envia-lo) ou NAO"),
+        "Want a certificate? Reply with your email to get it or NO",
+        "Deseja o certificado? Responda com seu email ou apenas NAO"),
     "reuse_prompt": (
         "Use previous info? YES / NO",
         "Usar dados anteriores? SIM / NAO"),
@@ -165,10 +165,10 @@ CERT_MSG = {
         "Isso e um email, nao um nome. Responda SIM ou envie seu nome."),
     "await_name_reject": (
         "That looks like an email, not a name. Send your name instead.",
-        "Isso parece um email, nao um nome. Envie seu nome."),
+        "Isso parece um email, nao um nome. Envie apenas seu nome."),
     "await_name_prompt": (
-        "Send the name for the certificate",
-        "Envie o nome para o certificado"),
+        "Send one name for the certificate",
+        "Envie um nome para o certificado"),
     "cancel_confirm": ("OK, no certificate. 73!", "OK, sem certificado. 73!"),
     "gen_fail": (
         "Sorry, could not build the certificate right now.",
@@ -176,9 +176,9 @@ CERT_MSG = {
     "sent_to": ("Sent to {}! 73", "Enviado para {}! 73"),
     "cert_ready": ("Certificate ready as {}! 73", "Certificado pronto como {}! 73"),
     "reset_restart": (
-        "Restarting. Reply your email (only to send it) or NO",
-        "Reiniciando. Responda seu email (so p/ envia-lo) ou NAO"),
-    "reset_no_active": ("No active net right now.", "Nenhuma Net ativa agora."),
+        "Restarting. Reply with your email to get it or NO",
+        "Reiniciando. Responda com seu email ou apenas NAO"),
+    "reset_no_active": ("No active net right now.", "Nenhuma Net ativa no momento."),
     "reset_no_checkin": ("Do a check-in first.", "Faca o check-in primeiro."),
     "resend_no_contact": (
         "No certificate on file. Do a check-in first.",
@@ -206,9 +206,9 @@ CONFIRM_NAME_BUDGET = (30, 34)   # (EN, PT) max name length for the template abo
 # Admin-only results (USERS, and the STOP/PAUSE/etc. confirmations) are not
 # in here and stay English-only, matching COMMAND_HELP's own admin entries.
 QUERY_MSG = {
-    "no_active_net": ("No active net right now.", "Nenhuma Net ativa agora."),
+    "no_active_net": ("No active Net right now.", "Nenhuma Net ativa agora."),
     "no_active_net_time": (
-        "No active net (no end time set).",
+        "No active Net (no end time set).",
         "Nenhuma Net ativa (sem hora de termino definida)."),
     "last_none": ("{}: no check-ins yet", "{}: nenhum check-in ainda"),
     "last_prefix": ("{} last: ", "{} ultimos: "),
@@ -225,7 +225,7 @@ def base_call(call):
 
 def is_br_call(call):
     """True if the base callsign's prefix falls in Brazil's amateur radio
-    block (PP through PY), e.g. PP5PK, PY2ABC, PU5KOD. Used to switch the
+    block (PP through PY), e.g. PP5PK, PY2ABC, PY5IB. Used to switch the
     check-in / certificate messages to Portuguese automatically."""
     base = base_call(call)
     return len(base) >= 2 and base[0] == "P" and "P" <= base[1] <= "Y"
