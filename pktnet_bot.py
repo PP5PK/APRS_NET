@@ -178,7 +178,7 @@ CERT_MSG = {
     "reset_restart": (
         "Restarting. Reply with your email to get it or NO",
         "Reiniciando. Responda com seu email ou apenas NAO"),
-    "reset_no_active": ("No active net right now.", "Nenhuma Net ativa no momento."),
+    "reset_no_active": ("No active Net right now.", "Nenhuma Net ativa no momento."),
     "reset_no_checkin": ("Do a check-in first.", "Faca o check-in primeiro."),
     "resend_no_contact": (
         "No certificate on file. Do a check-in first.",
