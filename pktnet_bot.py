@@ -68,6 +68,7 @@ APRS_MAX_TEXT = 67           # APRS message text hard limit (characters)
 PART_RESERVE = 8
 SOFTWARE_NAME = "PKTNET"
 SOFTWARE_VERS = "1.0"
+EVENTS_LIMIT = 10            # max events shown by the admin EVENTS command
 
 LOG = logging.getLogger("pktnet")
 
@@ -87,6 +88,7 @@ COMMAND_ALIASES = {
     "RESET": "reset",
     # admin only
     "USERS": "users",
+    "EVENTS": "events",
     "START": "start",
     "STOP": "stop", "END": "stop",
     "PAUSE": "pause",
@@ -95,7 +97,7 @@ COMMAND_ALIASES = {
 }
 
 PUBLIC_ACTIONS = {"help", "status", "last", "time", "me", "resend", "reset"}
-ADMIN_ACTIONS = {"users", "start", "stop", "pause", "restart", "extend"}
+ADMIN_ACTIONS = {"users", "events", "start", "stop", "pause", "restart", "extend"}
 
 # Group-chat room commands (messages addressed to the room callsign).
 ROOM_COMMAND_ALIASES = {
@@ -107,7 +109,7 @@ ROOM_COMMAND_ALIASES = {
 
 # Command names shown by HELP, per permission group.
 HELP_PUBLIC = ["HELP", "STATUS", "LAST", "TIME", "ME", "RESEND", "RESET"]
-HELP_ADMIN = ["USERS", "START", "STOP", "PAUSE", "RESTART", "EXTEND"]
+HELP_ADMIN = ["USERS", "EVENTS", "START", "STOP", "PAUSE", "RESTART", "EXTEND"]
 
 # One-line syntax/usage summary per command, for "HELP <COMMAND>". Every
 # value must fit in a single APRS message (APRS_MAX_TEXT, 67 chars).
@@ -130,6 +132,7 @@ COMMAND_HELP = {
     # Admin commands: English only (unlike the public list above, these are
     # not translated - only admin_calls can reach them anyway).
     "USERS": "USERS lists every callsign checked into the active net.",
+    "EVENTS": "EVENTS shows the last 10 Nets: name and date.",
     "START": "START [name] starts a net for today (until 2359z).",
     "STOP": "STOP ends the active net now.",
     "PAUSE": "PAUSE pauses the net; check-ins get a maintenance reply.",
@@ -1400,6 +1403,19 @@ class PktNetBot:
                 self._enqueue_reply(source, "No check-ins yet.")
                 return
             self._enqueue_pack(source, calls)
+            return
+
+        if action == "events":
+            rows = conn.execute(
+                "SELECT name, event_date FROM events "
+                "ORDER BY start_utc DESC LIMIT ?",
+                (EVENTS_LIMIT,)).fetchall()
+            if not rows:
+                self._enqueue_reply(source, "No events registered.")
+                return
+            tokens = ["{} ({})".format(r["name"], r["event_date"])
+                     for r in rows]
+            self._enqueue_pack(source, tokens, sep="; ")
             return
 
         if action == "start":
