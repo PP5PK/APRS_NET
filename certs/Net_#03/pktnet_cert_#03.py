@@ -122,6 +122,8 @@ DEFAULT_TEMPLATE = "/var/lib/pktnet/certs/pktnet_template.png"
 
 GOLD = (223, 170, 78)
 CREAM = (246, 246, 248)
+SKY_BLUE = (168, 205, 235)   # operator name - picks up the night-sky backdrop
+CORAL = (235, 140, 95)       # Net name - picks up the sunset in the artwork
 
 FONT_CALLSIGN = "Orbitron-Black.ttf"
 FONT_NAME = "Playfair-SemiBoldItalic.ttf"
@@ -278,7 +280,8 @@ def draw_certificate(path, ctx):
                                  L["name_size"], L["name_single_min"],
                                  L["name_wrap_min"])
         if len(lines) == 1:
-            img = _draw_center(img, lines[0], cx, L["name_cy"] * H, f, CREAM)
+            img = _draw_center(img, lines[0], cx, L["name_cy"] * H, f,
+                               SKY_BLUE)
         else:
             draw = ImageDraw.Draw(img)
             b1 = draw.textbbox((0, 0), lines[0], font=f)
@@ -289,8 +292,8 @@ def draw_certificate(path, ctx):
             name_cy_px = L["name_cy"] * H
             cy1 = name_cy_px - block_h / 2 + h1 / 2
             cy2 = name_cy_px + block_h / 2 - h2 / 2
-            img = _draw_center(img, lines[0], cx, cy1, f, CREAM)
-            img = _draw_center(img, lines[1], cx, cy2, f, CREAM)
+            img = _draw_center(img, lines[0], cx, cy1, f, SKY_BLUE)
+            img = _draw_center(img, lines[1], cx, cy2, f, SKY_BLUE)
 
     # Fixed caption - same wording on every certificate from this event.
     f = _fit(FONT_VALUE, FIXED_TEXT, L["fixed_maxw"] * W, L["fixed_size"])
@@ -299,7 +302,7 @@ def draw_certificate(path, ctx):
     event = (ctx.get("event_name") or "").strip()
     if event:
         f = _fit(FONT_EVENT, event, L["event_maxw"] * W, L["event_size"])
-        img = _draw_center(img, event, cx, L["event_cy"] * H, f, GOLD)
+        img = _draw_center(img, event, cx, L["event_cy"] * H, f, CORAL)
 
     date_txt = (ctx.get("date_br") or "").strip()
     if date_txt:
