@@ -200,6 +200,12 @@ CERT_MSG = {
 }
 CONFIRM_NAME_BUDGET = (30, 34)   # (EN, PT) max name length for the template above
 
+# Max length kept for a manually-typed operator name (confirm_name/await_name
+# states below). 67 is the APRS message-length limit itself, so this no
+# longer truncates anything a legitimate APRS message could ever contain -
+# the certificate renderer wraps a long name onto a second line instead.
+CERT_NAME_MAX_LEN = 67
+
 # Public query-command RESULTS (STATUS/LAST/TIME/ME) - distinct from
 # COMMAND_HELP above, which only covers what "HELP <command>" describes.
 # Same (English, Portuguese) shape, selected per-caller via is_br_call().
@@ -1719,7 +1725,7 @@ class PktNetBot:
                     self._flow_send(source,
                                     self._cmsg(source, "confirm_name_reject"))
                     return
-                name = t[:40]
+                name = t[:CERT_NAME_MAX_LEN]
             self._finish_cert(source, row["event_id"], row["email"], name)
             return
 
@@ -1728,7 +1734,8 @@ class PktNetBot:
                 self._flow_send(source,
                                 self._cmsg(source, "await_name_reject"))
                 return
-            self._finish_cert(source, row["event_id"], row["email"], t[:40])
+            self._finish_cert(source, row["event_id"], row["email"],
+                              t[:CERT_NAME_MAX_LEN])
             return
 
     def _after_cert_email(self, source, event_id, email):
