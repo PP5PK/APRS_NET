@@ -130,7 +130,7 @@ FONT_NAME = "Playfair-SemiBoldItalic.ttf"
 FONT_EVENT = "Montserrat-SemiBold.ttf"
 FONT_VALUE = "Montserrat-Medium.ttf"
 
-# _cy = vertical position (fraction of the template height; centre of the text).
+# _cy = vertical position (fraction of the template height; centre of the text), lower value goes up, higher value goes down.
 # _x  = horizontal position (fraction of the template width; centre of the text).
 # _maxw = maximum text width (fraction of the template width); the font shrinks to fit.
 # _size = starting font size in pixels.
@@ -146,7 +146,7 @@ LAYOUT = {
     # Heights: event name, date and time (same line)
     "event_cy": 0.56, "value_cy": 0.63,
 
-    # Horizontal centres of the date and the time
+    # Horizontal centres of the date and the time, Value > moves to the right.
     "date_x": 0.395, "time_x": 0.64,
 
     # Max widths: callsign, operator name, fixed text
