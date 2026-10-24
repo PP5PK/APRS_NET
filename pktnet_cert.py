@@ -122,22 +122,48 @@ DEFAULT_TEMPLATE = "/var/lib/pktnet/certs/pktnet_template.png"
 
 GOLD = (223, 170, 78)
 CREAM = (246, 246, 248)
+SKY_BLUE = (168, 205, 235)   # operator name - picks up the night-sky backdrop
+CORAL = (235, 140, 95)       # Net name - picks up the sunset in the artwork
 
 FONT_CALLSIGN = "Orbitron-Black.ttf"
 FONT_NAME = "Playfair-SemiBoldItalic.ttf"
 FONT_EVENT = "Montserrat-SemiBold.ttf"
 FONT_VALUE = "Montserrat-Medium.ttf"
 
-# Field placement as fractions of the template width/height. Tuned to
-# pktnet_template.png (1248x832); it scales with any same-proportion template.
-# _cy = Vertical position, lower value goes up, higher value goes down
-# _size = font size. 
+# _cy = vertical position (fraction of the template height; centre of the text).
+# _x  = horizontal position (fraction of the template width; centre of the text).
+# _maxw = maximum text width (fraction of the template width); the font shrinks to fit.
+# _size = starting font size in pixels.
+FIXED_TEXT = "Successfully participated in"
+
 LAYOUT = {
-    "cx": 0.497,            # horizontal centre of the card frame
-    "callsign_cy": 0.350, "name_cy": 0.470, "event_cy": 0.583,
-    "value_cy": 0.680, "date_x": 0.352, "time_x": 0.628,
-    "callsign_maxw": 0.62, "name_maxw": 0.58, "event_maxw": 0.62,
-    "callsign_size": 120, "name_size": 48, "event_size": 34, "value_size": 24,
+    # horizontal centre of the card frame
+    "cx": 0.500,
+
+    # Heights: callsign, operator name, fixed text
+    "callsign_cy": 0.345, "name_cy": 0.455, "fixed_cy": 0.52,
+
+    # Heights: event name, date and time (same line)
+    "event_cy": 0.56, "value_cy": 0.63,
+
+    # Horizontal centres of the date and the time
+    "date_x": 0.395, "time_x": 0.64,
+
+    # Max widths: callsign, operator name, fixed text
+    "callsign_maxw": 0.496, "name_maxw": 0.275, "fixed_maxw": 0.388,
+
+    # Max widths: event name, date, time
+    "event_maxw": 0.315, "date_maxw": 0.14, "time_maxw": 0.14,
+
+    # Starting font sizes: callsign, operator name, fixed text
+    "callsign_size": 156, "name_size": 48, "fixed_size": 30,
+
+    # Starting font sizes: event name, date/time
+    "event_size": 34, "value_size": 40,
+
+    # Name font floor on a single line (below this the name wraps to two lines)
+    # and the floor once it is on two lines
+    "name_single_min": 32, "name_wrap_min": 24,
 }
 
 
@@ -155,6 +181,46 @@ def _fit(name, text, max_w, start, minsz=20):
             return f
         size -= 2
     return _font(name, minsz)
+
+
+def _fit_or_wrap(name, text, max_w, start, single_min=20, wrap_min=20):
+    """Largest single-line font (from `start` down to `single_min`) whose
+    text fits `max_w`. If `text` is still too wide at `single_min`, it is
+    split at the word boundary that best balances the two halves, and that
+    two-line version is fit the same way (shrinking down to `wrap_min` if
+    needed). Returns (lines, font), where `lines` has 1 or 2 strings."""
+
+    def width(f, t):
+        box = f.getbbox(t)
+        return box[2] - box[0]
+
+    size = start
+    while size >= single_min:
+        f = _font(name, size)
+        if width(f, text) <= max_w:
+            return [text], f
+        size -= 2
+
+    words = text.split()
+    if len(words) < 2:
+        return [text], _font(name, single_min)
+
+    f0 = _font(name, start)
+    best = None
+    for i in range(1, len(words)):
+        line1, line2 = " ".join(words[:i]), " ".join(words[i:])
+        score = max(width(f0, line1), width(f0, line2))
+        if best is None or score < best[0]:
+            best = (score, line1, line2)
+    _, line1, line2 = best
+
+    size = start
+    while size >= wrap_min:
+        f = _font(name, size)
+        if width(f, line1) <= max_w and width(f, line2) <= max_w:
+            return [line1, line2], f
+        size -= 2
+    return [line1, line2], _font(name, wrap_min)
 
 
 def _base_call(callsign):
@@ -203,25 +269,46 @@ def draw_certificate(path, ctx):
 
     name = (ctx.get("op_name") or "").strip()
     if name:
-        f = _fit(FONT_NAME, name, L["name_maxw"] * W, L["name_size"])
-        img = _draw_center(img, name, cx, L["name_cy"] * H, f, CREAM)
+        lines, f = _fit_or_wrap(FONT_NAME, name, L["name_maxw"] * W,
+                                 L["name_size"], L["name_single_min"],
+                                 L["name_wrap_min"])
+        if len(lines) == 1:
+            img = _draw_center(img, lines[0], cx, L["name_cy"] * H, f,
+                               SKY_BLUE)
+        else:
+            draw = ImageDraw.Draw(img)
+            b1 = draw.textbbox((0, 0), lines[0], font=f)
+            b2 = draw.textbbox((0, 0), lines[1], font=f)
+            h1, h2 = b1[3] - b1[1], b2[3] - b2[1]
+            line_gap = f.size * 0.25
+            block_h = h1 + line_gap + h2
+            name_cy_px = L["name_cy"] * H
+            cy1 = name_cy_px - block_h / 2 + h1 / 2
+            cy2 = name_cy_px + block_h / 2 - h2 / 2
+            img = _draw_center(img, lines[0], cx, cy1, f, SKY_BLUE)
+            img = _draw_center(img, lines[1], cx, cy2, f, SKY_BLUE)
+
+    # Fixed caption - same wording on every certificate from this event.
+    f = _fit(FONT_VALUE, FIXED_TEXT, L["fixed_maxw"] * W, L["fixed_size"])
+    img = _draw_center(img, FIXED_TEXT, cx, L["fixed_cy"] * H, f, CREAM)
 
     event = (ctx.get("event_name") or "").strip()
     if event:
         f = _fit(FONT_EVENT, event, L["event_maxw"] * W, L["event_size"])
-        img = _draw_center(img, event, cx, L["event_cy"] * H, f, GOLD)
+        img = _draw_center(img, event, cx, L["event_cy"] * H, f, CORAL)
 
-    fval = _font(FONT_VALUE, L["value_size"])
     date_txt = (ctx.get("date_br") or "").strip()
     if date_txt:
-        _draw_left(img, date_txt, L["date_x"] * W, L["value_cy"] * H, fval,
-                   CREAM)
+        f = _fit(FONT_VALUE, date_txt, L["date_maxw"] * W, L["value_size"])
+        img = _draw_center(img, date_txt, L["date_x"] * W, L["value_cy"] * H,
+                           f, CREAM)
     time_txt = (ctx.get("checkin_time") or "").strip()
     if time_txt:
         if not time_txt.lower().endswith("z"):
             time_txt += "z"
-        _draw_left(img, time_txt, L["time_x"] * W, L["value_cy"] * H, fval,
-                   CREAM)
+        f = _fit(FONT_VALUE, time_txt, L["time_maxw"] * W, L["value_size"])
+        img = _draw_center(img, time_txt, L["time_x"] * W, L["value_cy"] * H,
+                           f, CREAM)
 
     if path.lower().endswith(".pdf"):
         img.save(path, "PDF", resolution=150.0)
