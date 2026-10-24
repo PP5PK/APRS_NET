@@ -244,13 +244,6 @@ def _draw_center(img, text, cx, cy, font, fill, glow=False):
     return img
 
 
-def _draw_left(img, text, x, cy, font, fill):
-    """Draw text left-aligned at x, vertically centred on cy."""
-    draw = ImageDraw.Draw(img)
-    l, t, r, b = draw.textbbox((0, 0), text, font=font)
-    draw.text((x, cy - (b - t) / 2 - t), text, font=font, fill=fill)
-
-
 def draw_certificate(path, ctx):
     """Composite the dynamic fields onto the template and save to `path`
     (PDF if the path ends in .pdf, otherwise inferred from the extension)."""
