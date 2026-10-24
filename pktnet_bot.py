@@ -686,6 +686,13 @@ def delete_event(conn, event_id):
     n = count_checkins(conn, event_id)
     conn.execute("DELETE FROM checkins WHERE event_id = ?", (event_id,))
     conn.execute("DELETE FROM events WHERE event_id = ?", (event_id,))
+    # AUTOINCREMENT never reuses ids on its own: rewind the counter to the
+    # highest remaining event_id so a re-created net takes the freed number
+    # (e.g. delete #2 and #3, the next addevent becomes #2 again).
+    conn.execute(
+        "UPDATE sqlite_sequence SET seq = "
+        "(SELECT COALESCE(MAX(event_id), 0) FROM events) "
+        "WHERE name = 'events'")
     conn.commit()
     return n
 
@@ -2241,7 +2248,9 @@ def main():
         "delevent", parents=[common], formatter_class=RAW,
         help="delete a net and its check-ins",
         description="Permanently delete an event and all of its "
-                    "check-ins. This cannot be undone.",
+                    "check-ins. This cannot be undone. The event id "
+                    "counter is rewound, so a net created afterwards "
+                    "reuses the freed number.",
         epilog="Examples:\n"
                "  pktnet_bot.py delevent 3       # asks for confirmation\n"
                "  pktnet_bot.py delevent 3 -y    # skip the confirmation "
