@@ -307,7 +307,7 @@ contains your passcode.
 | `net` | `paused_text` | `PKTNET under maintenance...` | Reply sent to check-ins while the net is paused. |
 | `net` | `checkin_hint_pt`, `checked_text_pt`, `confirm_text_pt`, `dup_text_pt`, `closed_text_pt`, `paused_text_pt` | *(built-in Portuguese)* | Portuguese wording for the six rows above, used automatically for a PP-PY callsign - no need to set these unless you want to change the wording; each is independent of its English counterpart. |
 | `room` | `room_call` | *(empty)* | Group-chat room callsign (e.g. `PKTQSO`). Empty disables the room. |
-| `room` | `timeout_min` | `4320` | Drop room members idle for this many minutes (3 days). |
+| `room` | `timeout_days` | `3` | Drop room members idle for this many days. `0` = never drop. (The old `timeout_min` key, in minutes, is still read if `timeout_days` is absent.) |
 | `room` | `max_members` | `60` | Maximum members in the room. |
 | `room` | `min_interval` | `10` | Minimum seconds between a member's relayed messages. |
 | `cert` | `enable` | `false` | Turn the interactive certificate flow on or off. |
@@ -430,7 +430,7 @@ member sends is relayed to all the other members as `SENDER: text`.
 The message a member sends **to the room** is acknowledged (so their radio stops
 retransmitting), but the relayed copies delivered to each member are sent
 **without** an ACK, to keep RF traffic down. Members idle longer than
-`timeout_min` are dropped automatically; `max_members` caps the room size and
+`timeout_days` are dropped automatically (`0` keeps them forever); `max_members` caps the room size and
 `min_interval` throttles how often one member's messages are relayed. `JOIN`,
 `LEAVE`, `WHO` and `HELP` are reserved words and are not relayed as chat.
 

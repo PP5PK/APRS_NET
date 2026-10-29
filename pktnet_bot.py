@@ -446,7 +446,11 @@ def load_config(path):
 
         # Group chat room (optional). Empty room_call disables the room.
         "room_call": cfg.get("room", "room_call", fallback="").upper().strip(),
-        "room_timeout_min": cfg.getint("room", "timeout_min", fallback=60),
+        # Idle time (in days) before a room member is dropped; 0 = never.
+        # Falls back to the legacy minutes-based `timeout_min` key if set.
+        "room_timeout_days": cfg.getfloat(
+            "room", "timeout_days",
+            fallback=cfg.getint("room", "timeout_min", fallback=4320) / 1440.0),
         "room_max": cfg.getint("room", "max_members", fallback=30),
         "room_min_interval": cfg.getint("room", "min_interval", fallback=3),
 
@@ -1154,10 +1158,11 @@ class PktNetBot:
         now = datetime.now(timezone.utc)
         now_iso = now.isoformat()
 
-        # Drop members idle beyond the timeout.
-        deadline = (now - timedelta(
-            minutes=self.cfg["room_timeout_min"])).isoformat()
-        room_prune(conn, deadline)
+        # Drop members idle beyond the timeout (0 days = never drop).
+        if self.cfg["room_timeout_days"] > 0:
+            deadline = (now - timedelta(
+                days=self.cfg["room_timeout_days"])).isoformat()
+            room_prune(conn, deadline)
 
         raction = ROOM_COMMAND_ALIASES.get(text.strip().strip("[]").strip().upper())
 

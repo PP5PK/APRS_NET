@@ -69,8 +69,8 @@ rate_cooldown_min = 10
 # member sends is relayed to all other members. Leave room_call empty to
 # disable the room. Commands (to room_call): JOIN, LEAVE, WHO, HELP.
 room_call = PKTQSO
-# Drop members with no activity for this many minutes.
-timeout_min = 4320
+# Drop members with no activity for this many days (0 = never drop).
+timeout_days = 3
 # Maximum members in the room.
 max_members = 60
 # Minimum seconds between a member's relayed messages (flood guard).
