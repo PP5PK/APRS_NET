@@ -130,40 +130,43 @@ FONT_NAME = "Playfair-SemiBoldItalic.ttf"
 FONT_EVENT = "Montserrat-SemiBold.ttf"
 FONT_VALUE = "Montserrat-Medium.ttf"
 
-# _cy = vertical position (fraction of the template height; centre of the text), lower value goes up, higher value goes down.
-# _x  = horizontal position (fraction of the template width; centre of the text).
-# _maxw = maximum text width (fraction of the template width); the font shrinks to fit.
-# _size = starting font size in pixels.
+# The certificate data goes in a small translucent grey box in the bottom-right
+# corner, so the background template can be swapped freely - it never has to
+# leave room for the text. The box is sized to its content: callsign and
+# operator name on the left, caption, event and date/time on the right.
+# Every `_size` is a starting font size in pixels that shrinks to fit; the
+# box distance from the page edge is physical (cm, the PDF is saved at 150 DPI).
 FIXED_TEXT = "Successfully participated in"
 
 LAYOUT = {
-    # horizontal centre of the card frame
-    "cx": 0.500,
+    # Distance from the bottom-right corner of the page (cm).
+    "box_right_cm": 1.0, "box_bottom_cm": 1.0,
 
-    # Heights: callsign, operator name, fixed text
-    "callsign_cy": 0.345, "name_cy": 0.455, "fixed_cy": 0.52,
+    # Box look: grey fill, alpha 0-255 (128 = 50% transparent), corner radius,
+    # inner padding (px) and gold outline alpha (0 = no outline).
+    "box_rgb": (70, 70, 75), "box_alpha": 128,
+    "box_radius_px": 16, "box_outline_alpha": 170,
+    "box_pad_x_px": 28, "box_pad_y_px": 22,
 
-    # Heights: event name, date and time (same line)
-    "event_cy": 0.56, "value_cy": 0.63,
+    # Gap between the two columns (px; a thin gold divider is drawn in it)
+    # and the widest each column may grow before its text shrinks/wraps.
+    "col_gap_px": 36, "divider_alpha": 150,
+    "left_max_w_px": 400, "right_max_w_px": 380,
 
-    # Horizontal centres of the date and the time, Value > moves to the right.
-    "date_x": 0.395, "time_x": 0.64,
+    # Starting font sizes (px): callsign, operator name, fixed text,
+    # event name, date/time line.
+    "callsign_size": 68, "name_size": 36, "fixed_size": 18,
+    "event_size": 28, "value_size": 24,
 
-    # Max widths: callsign, operator name, fixed text
-    "callsign_maxw": 0.496, "name_maxw": 0.275, "fixed_maxw": 0.388,
+    # Operator name: smallest size on a single line (below this it wraps to
+    # two lines) and smallest size once it is on two lines.
+    "name_single_min": 24, "name_wrap_min": 20,
 
-    # Max widths: event name, date, time
-    "event_maxw": 0.315, "date_maxw": 0.14, "time_maxw": 0.14,
+    # Event name: same idea.
+    "event_single_min": 18, "event_wrap_min": 15,
 
-    # Starting font sizes: callsign, operator name, fixed text
-    "callsign_size": 156, "name_size": 48, "fixed_size": 30,
-
-    # Starting font sizes: event name, date/time
-    "event_size": 34, "value_size": 40,
-
-    # Name font floor on a single line (below this the name wraps to two lines)
-    # and the floor once it is on two lines
-    "name_single_min": 32, "name_wrap_min": 24,
+    # Text effect (readable on any background): dark outline + drop shadow.
+    "outline_rgb": (10, 12, 20), "shadow_alpha": 200,
 }
 
 
@@ -228,80 +231,160 @@ def _base_call(callsign):
     return (callsign or "").split("-")[0].upper().strip()
 
 
-def _draw_center(img, text, cx, cy, font, fill, glow=False):
-    """Draw text centred on (cx, cy). With glow, a soft coloured halo is
-    composited behind it. Returns the (possibly new) image."""
+def _fx(font):
+    """Outline width (px) and shadow offset/blur for a font size."""
+    sw = max(1, int(round(font.size / 16.0)))
+    return sw, sw + 1
+
+
+def _measure(draw, text, font):
+    """(width, height) of `text` including its outline."""
+    sw, _ = _fx(font)
+    l, t, r, b = draw.textbbox((0, 0), text, font=font, stroke_width=sw)
+    return r - l, b - t
+
+
+def _draw_fx(img, text, cx, cy, font, fill):
+    """Draw text centred on (cx, cy) with a dark outline and a soft drop
+    shadow, so it stays readable on light and dark backgrounds alike."""
+    L = LAYOUT
     draw = ImageDraw.Draw(img)
-    l, t, r, b = draw.textbbox((0, 0), text, font=font)
-    x, y = cx - (r - l) / 2 - l, cy - (b - t) / 2 - t
-    if glow:
-        layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
-        ImageDraw.Draw(layer).text((x, y), text, font=font, fill=fill + (160,))
-        layer = layer.filter(ImageFilter.GaussianBlur(7))
-        img = Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB")
-        draw = ImageDraw.Draw(img)
-    draw.text((x, y), text, font=font, fill=fill)
+    sw, off = _fx(font)
+    l, t, r, b = draw.textbbox((0, 0), text, font=font, stroke_width=sw)
+    x, y = cx - (r - l) / 2.0 - l, cy - (b - t) / 2.0 - t
+    m = off * 3 + 4                      # margin around the text for the blur
+    box = (int(x + l - m), int(y + t - m), int(x + r + m), int(y + b + m))
+    layer = Image.new("RGBA", (box[2] - box[0], box[3] - box[1]), (0, 0, 0, 0))
+    ImageDraw.Draw(layer).text(
+        (x - box[0] + off, y - box[1] + off), text, font=font,
+        fill=(0, 0, 0, L["shadow_alpha"]), stroke_width=sw,
+        stroke_fill=(0, 0, 0, L["shadow_alpha"]))
+    layer = layer.filter(ImageFilter.GaussianBlur(off))
+    base = img.crop(box).convert("RGBA")
+    img.paste(Image.alpha_composite(base, layer).convert("RGB"), box[:2])
+    ImageDraw.Draw(img).text((x, y), text, font=font, fill=fill,
+                             stroke_width=sw,
+                             stroke_fill=tuple(L["outline_rgb"]))
     return img
 
 
+def _cm(value):
+    """Centimetres -> pixels at the 150 DPI the PDF is saved with."""
+    return int(round(value * 150.0 / 2.54))
+
+
+class _Column(object):
+    """A vertical stack of centred text entries (one or two lines each)."""
+
+    GAP = 8
+
+    def __init__(self, draw):
+        self.draw = draw
+        self.entries = []        # (lines, font, fill, line heights, height)
+
+    def add(self, lines, font, fill):
+        hs = [_measure(self.draw, t, font)[1] for t in lines]
+        h = sum(hs) + font.size * 0.2 * (len(lines) - 1)
+        self.entries.append((lines, font, fill, hs, h))
+
+    @property
+    def width(self):
+        w = 0
+        for lines, font, _, _, _ in self.entries:
+            for t in lines:
+                w = max(w, _measure(self.draw, t, font)[0])
+        return w
+
+    @property
+    def height(self):
+        return (sum(e[4] for e in self.entries)
+                + self.GAP * max(len(self.entries) - 1, 0))
+
+    def paint(self, img, cx, cy):
+        y = cy - self.height / 2.0
+        for lines, font, fill, hs, h in self.entries:
+            top = y
+            for t, th in zip(lines, hs):
+                img = _draw_fx(img, t, cx, top + th / 2.0, font, fill)
+                top += th + font.size * 0.2
+            y += h + self.GAP
+        return img
+
+
 def draw_certificate(path, ctx):
-    """Composite the dynamic fields onto the template and save to `path`
-    (PDF if the path ends in .pdf, otherwise inferred from the extension)."""
+    """Composite the certificate data onto the template and save to `path`
+    (PDF if the path ends in .pdf, otherwise inferred from the extension).
+
+    A translucent grey box in the bottom-right corner holds two columns:
+    callsign + operator name on the left; caption, event name and
+    date/time on the right. The box is sized to fit its content."""
     template = ctx.get("template") or DEFAULT_TEMPLATE
     img = Image.open(template).convert("RGB")
     W, H = img.size
     L = LAYOUT
-    cx = L["cx"] * W
+    draw = ImageDraw.Draw(img)
+
+    left, right = _Column(draw), _Column(draw)
 
     callsign = _base_call(ctx.get("callsign", ""))
     if callsign:
-        f = _fit(FONT_CALLSIGN, callsign, L["callsign_maxw"] * W,
+        f = _fit(FONT_CALLSIGN, callsign, L["left_max_w_px"],
                  L["callsign_size"])
-        img = _draw_center(img, callsign, cx, L["callsign_cy"] * H, f, GOLD,
-                           glow=True)
+        left.add([callsign], f, GOLD)
 
     name = (ctx.get("op_name") or "").strip()
     if name:
-        lines, f = _fit_or_wrap(FONT_NAME, name, L["name_maxw"] * W,
-                                 L["name_size"], L["name_single_min"],
-                                 L["name_wrap_min"])
-        if len(lines) == 1:
-            img = _draw_center(img, lines[0], cx, L["name_cy"] * H, f,
-                               SKY_BLUE)
-        else:
-            draw = ImageDraw.Draw(img)
-            b1 = draw.textbbox((0, 0), lines[0], font=f)
-            b2 = draw.textbbox((0, 0), lines[1], font=f)
-            h1, h2 = b1[3] - b1[1], b2[3] - b2[1]
-            line_gap = f.size * 0.25
-            block_h = h1 + line_gap + h2
-            name_cy_px = L["name_cy"] * H
-            cy1 = name_cy_px - block_h / 2 + h1 / 2
-            cy2 = name_cy_px + block_h / 2 - h2 / 2
-            img = _draw_center(img, lines[0], cx, cy1, f, SKY_BLUE)
-            img = _draw_center(img, lines[1], cx, cy2, f, SKY_BLUE)
+        lines, f = _fit_or_wrap(FONT_NAME, name, L["left_max_w_px"],
+                                L["name_size"], L["name_single_min"],
+                                L["name_wrap_min"])
+        left.add(lines, f, SKY_BLUE)
 
-    # Fixed caption - same wording on every certificate from this event.
-    f = _fit(FONT_VALUE, FIXED_TEXT, L["fixed_maxw"] * W, L["fixed_size"])
-    img = _draw_center(img, FIXED_TEXT, cx, L["fixed_cy"] * H, f, CREAM)
+    f = _fit(FONT_VALUE, FIXED_TEXT, L["right_max_w_px"], L["fixed_size"])
+    right.add([FIXED_TEXT], f, CREAM)
 
     event = (ctx.get("event_name") or "").strip()
     if event:
-        f = _fit(FONT_EVENT, event, L["event_maxw"] * W, L["event_size"])
-        img = _draw_center(img, event, cx, L["event_cy"] * H, f, CORAL)
+        lines, f = _fit_or_wrap(FONT_EVENT, event, L["right_max_w_px"],
+                                L["event_size"], L["event_single_min"],
+                                L["event_wrap_min"])
+        right.add(lines, f, CORAL)
 
     date_txt = (ctx.get("date_br") or "").strip()
-    if date_txt:
-        f = _fit(FONT_VALUE, date_txt, L["date_maxw"] * W, L["value_size"])
-        img = _draw_center(img, date_txt, L["date_x"] * W, L["value_cy"] * H,
-                           f, CREAM)
     time_txt = (ctx.get("checkin_time") or "").strip()
-    if time_txt:
-        if not time_txt.lower().endswith("z"):
-            time_txt += "z"
-        f = _fit(FONT_VALUE, time_txt, L["time_maxw"] * W, L["value_size"])
-        img = _draw_center(img, time_txt, L["time_x"] * W, L["value_cy"] * H,
-                           f, CREAM)
+    if time_txt and not time_txt.lower().endswith("z"):
+        time_txt += "z"
+    when = "  •  ".join(t for t in (date_txt, time_txt) if t)
+    if when:
+        f = _fit(FONT_VALUE, when, L["right_max_w_px"], L["value_size"])
+        right.add([when], f, CREAM)
+
+    # Size the box to its content and anchor it to the bottom-right corner.
+    cols = [c for c in (left, right) if c.entries]
+    gap = L["col_gap_px"] if len(cols) == 2 else 0
+    bw = sum(c.width for c in cols) + gap + 2 * L["box_pad_x_px"]
+    bh = max(c.height for c in cols) + 2 * L["box_pad_y_px"]
+    x0 = W - _cm(L["box_right_cm"]) - bw
+    y0 = H - _cm(L["box_bottom_cm"]) - bh
+
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    od = ImageDraw.Draw(overlay)
+    od.rounded_rectangle(
+        [x0, y0, x0 + bw, y0 + bh], radius=L["box_radius_px"],
+        fill=tuple(L["box_rgb"]) + (L["box_alpha"],),
+        outline=(GOLD + (L["box_outline_alpha"],)
+                 if L["box_outline_alpha"] else None), width=2)
+    if len(cols) == 2 and L["divider_alpha"]:
+        dx = x0 + L["box_pad_x_px"] + left.width + gap / 2.0
+        od.line([(dx, y0 + L["box_pad_y_px"]),
+                 (dx, y0 + bh - L["box_pad_y_px"])],
+                fill=GOLD + (L["divider_alpha"],), width=2)
+    img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+
+    cy = y0 + bh / 2.0
+    x = x0 + L["box_pad_x_px"]
+    for c in cols:
+        img = c.paint(img, x + c.width / 2.0, cy)
+        x += c.width + gap
 
     if path.lower().endswith(".pdf"):
         img.save(path, "PDF", resolution=150.0)
