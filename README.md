@@ -366,6 +366,11 @@ pktnet_bot.py -c /etc/pktnet/pktnet.conf endevent
 pktnet_bot.py -c /etc/pktnet/pktnet.conf editevent --extend 30
 pktnet_bot.py -c /etc/pktnet/pktnet.conf editevent --end 2026-06-25T22:00:00Z
 
+# Rename an event (defaults to the active/most recent one; add the id to
+# target another):
+pktnet_bot.py -c /etc/pktnet/pktnet.conf editevent --name "PKTNET Leonids"
+pktnet_bot.py -c /etc/pktnet/pktnet.conf editevent 5 --name "PKTNET #5"
+
 # Delete a net and its check-ins:
 pktnet_bot.py -c /etc/pktnet/pktnet.conf delevent 1
 

@@ -29,9 +29,10 @@ Subcommands
     pktnet_bot.py addevent NAME START END   Register a net event window (UTC).
     pktnet_bot.py events                    List registered events.
     pktnet_bot.py endevent [EVENT_ID]       End a net now (active event default).
-    pktnet_bot.py editevent [EVENT_ID] [--end ISO8601 | --extend MINUTES]
-                                             Change an event's end time - extend
-                                             or shorten it - without closing it.
+    pktnet_bot.py editevent [EVENT_ID] [--name NAME] [--end ISO8601 | --extend MINUTES]
+                                             Rename an event and/or change its end
+                                             time - extend or shorten it - without
+                                             closing it.
     pktnet_bot.py delevent EVENT_ID [-y]    Delete a net and its check-ins.
     pktnet_bot.py checkins [EVENT_ID]       List check-ins (latest event default).
 
@@ -633,6 +634,13 @@ def set_event_end(conn, event_id, new_end_iso):
     (shorten) while the net keeps running."""
     conn.execute("UPDATE events SET end_utc = ? WHERE event_id = ?",
                  (new_end_iso, event_id))
+    conn.commit()
+
+
+def set_event_name(conn, event_id, name):
+    """Rename an event; check-ins and status are untouched."""
+    conn.execute("UPDATE events SET name = ? WHERE event_id = ?",
+                 (name, event_id))
     conn.commit()
 
 
@@ -2054,18 +2062,29 @@ def cmd_editevent(args, cfg):
         print("Event #{} not found.".format(eid))
         return
 
+    new_name = args.name.strip() if args.name else None
+    if args.name is not None and not new_name:
+        print("The new name cannot be empty.")
+        conn.close()
+        return
+    new_end = None
     if args.end:
         new_end = _parse_iso(args.end)
     elif args.extend is not None:
         new_end = _iso_to_dt(row["end_utc"]) + timedelta(minutes=args.extend)
-    else:
-        print("Specify --end (absolute ISO 8601) or --extend (+/- minutes).")
+    if new_name is None and new_end is None:
+        print("Specify --name (new event name), --end (absolute ISO 8601) "
+              "or --extend (+/- minutes).")
         conn.close()
         return
 
-    set_event_end(conn, eid, new_end.isoformat())
-    print("Event #{} end time changed: {} -> {}".format(
-        eid, row["end_utc"], new_end.isoformat()))
+    if new_name is not None:
+        set_event_name(conn, eid, new_name)
+        print("Event #{} renamed: {} -> {}".format(eid, row["name"], new_name))
+    if new_end is not None:
+        set_event_end(conn, eid, new_end.isoformat())
+        print("Event #{} end time changed: {} -> {}".format(
+            eid, row["end_utc"], new_end.isoformat()))
     conn.close()
 
 
@@ -2224,14 +2243,19 @@ def main():
 
     p_edit = sub.add_parser(
         "editevent", parents=[common], formatter_class=RAW,
-        help="change an event's end time (extend or shorten without "
-             "closing it)",
-        description="Change an event's end time WITHOUT closing it - the "
-                    "net stays open (or paused). Use --extend for a "
-                    "relative change (add/subtract minutes) or --end for "
-                    "an absolute new time. This is the CLI equivalent of "
-                    "the APRS EXTEND admin command.",
+        help="rename an event and/or change its end time (extend or "
+             "shorten without closing it)",
+        description="Rename an event (--name) and/or change its end time "
+                    "WITHOUT closing it - the net stays open (or paused). "
+                    "Use --extend for a relative change (add/subtract "
+                    "minutes) or --end for an absolute new time. The end "
+                    "time options are the CLI equivalent of the APRS "
+                    "EXTEND admin command.",
         epilog="Examples:\n"
+               "  pktnet_bot.py editevent --name \"PKTNET Leonids\"   # "
+               "rename the active event\n"
+               "  pktnet_bot.py editevent 5 --name \"PKTNET #5\"      # "
+               "rename event #5\n"
                "  pktnet_bot.py editevent --extend 30     # push the end "
                "30 min later\n"
                "  pktnet_bot.py editevent --extend -15    # pull the end "
@@ -2242,6 +2266,9 @@ def main():
     p_edit.add_argument("event_id", nargs="?", type=int,
                         help="event id (defaults to the active/most recent "
                              "event)")
+    p_edit.add_argument("--name", metavar="NAME",
+                        help="new event name (shown in certificates and "
+                             "listings)")
     p_edit.add_argument("--end", metavar="ISO8601",
                         help="new absolute end time, e.g. "
                              "2026-09-04T23:00:00Z")
