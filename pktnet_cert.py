@@ -45,6 +45,28 @@ def template_from_config(path):
     return cfg.get("cert", "template", fallback=DEFAULT_TEMPLATE)
 
 
+def templates_dir_from_config(path):
+    """Folder of per-event templates (see event_template). Defaults to a
+    'templates' folder inside the certificates folder."""
+    cfg = configparser.ConfigParser()
+    cfg.read(path)
+    return cfg.get("cert", "templates_dir", fallback=os.path.join(
+        cfg.get("cert", "dir", fallback="/var/lib/pktnet/certs"),
+        "templates"))
+
+
+def event_template(default, templates_dir, event_id):
+    """Template for one event: <templates_dir>/pktnet_template_<event_id>.png
+    when that file exists, otherwise `default`. Chosen when the certificate
+    is generated, so it always follows the event (even for old events)."""
+    if templates_dir:
+        path = os.path.join(templates_dir,
+                            "pktnet_template_{}.png".format(event_id))
+        if os.path.isfile(path):
+            return path
+    return default
+
+
 def open_db(path):
     if not os.path.exists(path):
         sys.exit("Database not found: {}".format(path))
@@ -423,15 +445,21 @@ def main():
     else:
         sys.exit("Provide --db or --config to locate the database.")
 
-    template = (args.template
-                or (template_from_config(args.config) if args.config
-                    else DEFAULT_TEMPLATE))
+    explicit_template = args.template
+    default_template = (template_from_config(args.config) if args.config
+                        else DEFAULT_TEMPLATE)
+    templates_dir = (templates_dir_from_config(args.config)
+                     if args.config else None)
 
     conn = open_db(db_path)
     event = get_event(conn, args.event)
     checkins = get_checkins(conn, event["event_id"], args.callsign)
     if not checkins:
         sys.exit("No check-ins found for event #{}.".format(event["event_id"]))
+
+    # --template wins; otherwise the event's own template, then the default.
+    template = explicit_template or event_template(
+        default_template, templates_dir, event["event_id"])
 
     names = load_names(args.names)
     os.makedirs(args.out, exist_ok=True)

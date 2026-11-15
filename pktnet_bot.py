@@ -472,6 +472,11 @@ def load_config(path):
         "cert_flow_timeout_min": cfg.getint("cert", "flow_timeout_min",
                                             fallback=10),
         "cert_resend_min": cfg.getint("cert", "resend_min", fallback=5),
+        "cert_templates_dir": cfg.get(
+            "cert", "templates_dir",
+            fallback=os.path.join(
+                cfg.get("cert", "dir", fallback="/var/lib/pktnet/certs"),
+                "templates")),
         "cert_template": cfg.get("cert", "template",
                                  fallback="/var/lib/pktnet/certs/"
                                           "pktnet_template.png"),
@@ -1854,8 +1859,9 @@ class PktNetBot:
         is the upper-case base call shown on the certificate.
         """
         try:
-            from pktnet_cert import (draw_certificate, fmt_date_br,
-                                     fmt_time_utc, safe_filename)
+            from pktnet_cert import (draw_certificate, event_template,
+                                     fmt_date_br, fmt_time_utc,
+                                     safe_filename)
         except Exception as exc:  # Pillow or module missing
             LOG.warning("Certificate module unavailable: %s", exc)
             return None
@@ -1869,7 +1875,9 @@ class PktNetBot:
             (event_id, source)).fetchone()
         ts = row["ts_utc"] if row else datetime.now(timezone.utc).isoformat()
         ctx = {
-            "template": self.cfg["cert_template"],
+            "template": event_template(self.cfg["cert_template"],
+                                       self.cfg["cert_templates_dir"],
+                                       event_id),
             "net_call": event["net_call"],
             "event_name": event["name"],
             "date_br": fmt_date_br(event["event_date"]),
