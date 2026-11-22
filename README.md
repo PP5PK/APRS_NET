@@ -127,7 +127,7 @@ sequenceDiagram
 | `pktnet_bot.py` | APRS-IS daemon: check-ins, ACKs, logging, replies, remote commands, room and the interactive certificate/email flow. Also provides the event/check-in management subcommands. |
 | `pktnet_cert.py` | Command-line certificate generator: reads the database and renders one PDF per operator. |
 | `fonts/` | TrueType fonts used to draw the certificate (Orbitron, Playfair Display Italic, Montserrat). |
-| `certs/` | Certificate source data and tools: `users_base.csv` (name database source), `user_manager.sh` (interactive CSV editor), `create_user_db.php` + `update_db.sh` (build/refresh `users.db`), `pktnet_template.png` (the certificate background design) and a sample certificate. |
+| `certs/` | Certificate source data and tools: `users_base.csv` (name database source), `user_manager.sh` (interactive CSV editor), `create_user_db.php` + `update_db.sh` (build/refresh `users.db`), `pktnet_template.png` (the default certificate background), `templates/` (per-event backgrounds, `pktnet_template_<event_id>.png`) and a sample certificate. |
 | `pktnet.conf.example` | Configuration template (copy to `/etc/pktnet/pktnet.conf`). |
 | `pktnet.service` | Reference systemd unit (the installer generates its own with the right paths). |
 | `install.sh` | Centralised installer (code in `/opt/APRS_NET`, config/data in place, builds `users.db`). |
@@ -219,6 +219,7 @@ sudo apt install python3-pil php-cli php-sqlite3 sqlite3 pv   # deps
 # Build the operator-name database from the CSV (needed for the cert flow):
 sudo mkdir -p /var/lib/pktnet/certs
 sudo cp /opt/APRS_NET/certs/{users_base.csv,create_user_db.php,update_db.sh,user_manager.sh,pktnet_template.png} /var/lib/pktnet/certs/
+sudo cp -r /opt/APRS_NET/certs/templates /var/lib/pktnet/certs/
 sudo chmod +x /var/lib/pktnet/certs/user_manager.sh
 sudo php /var/lib/pktnet/certs/create_user_db.php
 sudo chown -R pktnet:pktnet /var/lib/pktnet
@@ -486,7 +487,7 @@ this out and asks again, so a retransmitted email message can't end up printed
 on the certificate. The bot can also email the PDF — see
 [Emailing certificates](#emailing-certificates) below.
 
-Put `users.db` and the `pktnet_template.png` template in the
+Put `users.db`, the `pktnet_template.png` default template and the optional `templates/` folder (per-event `pktnet_template_<event_id>.png`) in the
 `[cert] dir` folder — by default `/var/lib/pktnet/certs/`. The name database is
 built from `certs/users_base.csv`; to add or correct operators, edit the CSV
 with `certs/user_manager.sh` (an interactive editor) and rebuild `users.db` from

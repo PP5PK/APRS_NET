@@ -188,7 +188,7 @@ info "Preparing data directory ${DATA_DIR}"
 run mkdir -p "${DATA_DIR}"
 
 # Certificate source data: copy the repo's certs/ SOURCE files (CSV, the DB
-# build scripts and the background image) into the runtime certs dir. users.db
+# build scripts and the background images) into the runtime certs dir. users.db
 # is NOT shipped (a binary in git corrupts and hits web-upload size limits); it
 # is built locally below.
 CERT_DIR="${DATA_DIR}/certs"
@@ -199,6 +199,15 @@ if [ -d "${SRC_DIR}/certs" ]; then
       run install -m 0644 "${SRC_DIR}/certs/${f}" "${CERT_DIR}/${f}"
     fi
   done
+  # Per-event background templates (pktnet_template_<event_id>.png): copied to
+  # <certs dir>/templates, where the bot looks for them (cert templates_dir).
+  if [ -d "${SRC_DIR}/certs/templates" ]; then
+    run mkdir -p "${CERT_DIR}/templates"
+    for f in "${SRC_DIR}"/certs/templates/pktnet_template_*.png; do
+      [ -f "${f}" ] || continue
+      run install -m 0644 "${f}" "${CERT_DIR}/templates/$(basename "${f}")"
+    done
+  fi
   # user_manager.sh manages the CSV that builds the operator database - it is a
   # tool the operator runs, so copy it (executable) alongside the data.
   if [ -f "${SRC_DIR}/certs/user_manager.sh" ]; then
