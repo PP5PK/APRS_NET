@@ -352,6 +352,22 @@ pktnet_bot.py run -c /etc/pktnet/pktnet.conf
 
 ### Managing events
 
+Command reference (all take the global `-c/--config` option; run
+`pktnet_bot.py <command> --help` for its own syntax and examples). Omitting
+`[id]` targets the active event, or the most recent one if none is active.
+
+| Command | Action |
+|---------|--------|
+| `run` | Run the daemon (see above). |
+| `addevent <name> <start> <end>` | Register a net window. `start` and `end` are ISO 8601 UTC, e.g. `2026-06-25T00:00:00Z`. Check-ins only log while now is inside `[start, end)`. |
+| `events` | List every event: id, name, start/end (UTC) and check-in count. |
+| `endevent [id]` | Close a net right now (status closed, end time = now). Keeps the event and its check-ins. |
+| `editevent [id] [--name NAME] [--end ISO8601 \| --extend MINUTES]` | Rename an event and/or change its end time without closing it. `--extend` takes minutes to add or subtract (`--extend -15`); `--end` takes an absolute UTC time. At least one of `--name`, `--end`, `--extend` is required. |
+| `delevent <id> [-y]` | Permanently delete an event and its check-ins (asks for confirmation unless `-y`). The id counter is rewound, so the next event reuses the freed number. |
+| `checkins [id]` | List an event's check-ins (callsign and UTC time), in order. |
+
+Examples:
+
 ```bash
 # Register a net window (times in UTC):
 pktnet_bot.py -c /etc/pktnet/pktnet.conf addevent "PKTNET Net #1" \
