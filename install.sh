@@ -199,7 +199,7 @@ if [ -d "${SRC_DIR}/certs" ]; then
       run install -m 0644 "${SRC_DIR}/certs/${f}" "${CERT_DIR}/${f}"
     fi
   done
-  # Per-event background templates (pktnet_template_<event_id>.png): copied to
+  # Per-event background templates (pktnet_template_<NNN>.png): copied to
   # <certs dir>/templates, where the bot looks for them (cert templates_dir).
   if [ -d "${SRC_DIR}/certs/templates" ]; then
     run mkdir -p "${CERT_DIR}/templates"

@@ -127,7 +127,7 @@ sequenceDiagram
 | `pktnet_bot.py` | APRS-IS daemon: check-ins, ACKs, logging, replies, remote commands, room and the interactive certificate/email flow. Also provides the event/check-in management subcommands. |
 | `pktnet_cert.py` | Command-line certificate generator: reads the database and renders one PDF per operator. |
 | `fonts/` | TrueType fonts used to draw the certificate (Orbitron, Playfair Display Italic, Montserrat). |
-| `certs/` | Certificate source data and tools: `users_base.csv` (name database source), `user_manager.sh` (interactive CSV editor), `create_user_db.php` + `update_db.sh` (build/refresh `users.db`), `pktnet_template.png` (the default certificate background), `templates/` (per-event backgrounds, `pktnet_template_<event_id>.png`) and a sample certificate. |
+| `certs/` | Certificate source data and tools: `users_base.csv` (name database source), `user_manager.sh` (interactive CSV editor), `create_user_db.php` + `update_db.sh` (build/refresh `users.db`), `pktnet_template.png` (the default certificate background), `templates/` (per-event backgrounds, `pktnet_template_<NNN>.png`) and a sample certificate. |
 | `pktnet.conf.example` | Configuration template (copy to `/etc/pktnet/pktnet.conf`). |
 | `pktnet.service` | Reference systemd unit (the installer generates its own with the right paths). |
 | `install.sh` | Centralised installer (code in `/opt/APRS_NET`, config/data in place, builds `users.db`). |
@@ -315,7 +315,7 @@ contains your passcode.
 | `cert` | `dir` | `/var/lib/pktnet/certs` | Folder for generated PDFs, `users.db` and the CSV. |
 | `cert` | `users_db` | `.../certs/users.db` | Read-only name database `users(callsign, name, city_state)`. |
 | `cert` | `template` | `.../certs/pktnet_template.png` | Certificate background design the data is drawn onto. |
-| `cert` | `templates_dir` | `.../certs/templates` | Optional per-event templates: `pktnet_template_<event_id>.png` (e.g. `pktnet_template_1.png` for event #1) overrides `template` for that event's certificates; events without a file use `template`. Chosen when the certificate is generated. |
+| `cert` | `templates_dir` | `.../certs/templates` | Optional per-event templates: `pktnet_template_<NNN>.png` (event id zero-padded to 3 digits, e.g. `pktnet_template_001.png` for event #1) overrides `template` for that event's certificates; events without a file use `template`. Chosen when the certificate is generated. |
 | `cert` | `flow_timeout_min` | `15` | Drop an unfinished certificate conversation after N minutes. |
 | `cert` | `resend_min` | `5` | If the operator goes quiet mid-flow, resend the last prompt after N minutes (a lost message shouldn't cost the certificate). |
 | `email` | `enable` | `false` | Email the generated PDF over SMTP (needs the keys below). |
@@ -503,7 +503,7 @@ this out and asks again, so a retransmitted email message can't end up printed
 on the certificate. The bot can also email the PDF — see
 [Emailing certificates](#emailing-certificates) below.
 
-Put `users.db`, the `pktnet_template.png` default template and the optional `templates/` folder (per-event `pktnet_template_<event_id>.png`) in the
+Put `users.db`, the `pktnet_template.png` default template and the optional `templates/` folder (per-event `pktnet_template_<NNN>.png`) in the
 `[cert] dir` folder — by default `/var/lib/pktnet/certs/`. The name database is
 built from `certs/users_base.csv`; to add or correct operators, edit the CSV
 with `certs/user_manager.sh` (an interactive editor) and rebuild `users.db` from
