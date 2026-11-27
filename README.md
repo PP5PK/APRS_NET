@@ -315,7 +315,7 @@ contains your passcode.
 | `cert` | `dir` | `/var/lib/pktnet/certs` | Folder for generated PDFs, `users.db` and the CSV. |
 | `cert` | `users_db` | `.../certs/users.db` | Read-only name database `users(callsign, name, city_state)`. |
 | `cert` | `template` | `.../certs/pktnet_template.png` | Certificate background design the data is drawn onto. |
-| `cert` | `templates_dir` | `.../certs/templates` | Optional per-event templates: `pktnet_template_<event_id>.png` (e.g. `pktnet_template_25.png` for event #25) overrides `template` for that event's certificates; events without a file use `template`. Chosen when the certificate is generated. |
+| `cert` | `templates_dir` | `.../certs/templates` | Optional per-event templates: `pktnet_template_<event_id>.png` (e.g. `pktnet_template_1.png` for event #1) overrides `template` for that event's certificates; events without a file use `template`. Chosen when the certificate is generated. |
 | `cert` | `flow_timeout_min` | `15` | Drop an unfinished certificate conversation after N minutes. |
 | `cert` | `resend_min` | `5` | If the operator goes quiet mid-flow, resend the last prompt after N minutes (a lost message shouldn't cost the certificate). |
 | `email` | `enable` | `false` | Email the generated PDF over SMTP (needs the keys below). |
