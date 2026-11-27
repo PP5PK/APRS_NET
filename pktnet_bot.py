@@ -133,7 +133,7 @@ COMMAND_HELP = {
     # Admin commands: English only (unlike the public list above, these are
     # not translated - only admin_calls can reach them anyway).
     "USERS": "USERS lists every callsign checked into the active net.",
-    "EVENTS": "EVENTS shows the last 10 Nets: name and date.",
+    "EVENTS": "EVENTS shows the last 10 Nets in order: name and date.",
     "START": "START [name] starts a net for today (until 2359z).",
     "STOP": "STOP ends the active net now.",
     "PAUSE": "PAUSE pauses the net; check-ins get a maintenance reply.",
@@ -1440,8 +1440,10 @@ class PktNetBot:
 
         if action == "events":
             rows = conn.execute(
-                "SELECT name, event_date FROM events "
-                "ORDER BY start_utc DESC LIMIT ?",
+                "SELECT name, event_date FROM ("
+                "  SELECT event_id, name, event_date, start_utc FROM events "
+                "  ORDER BY start_utc DESC LIMIT ?) "
+                "ORDER BY start_utc, event_id",
                 (EVENTS_LIMIT,)).fetchall()
             if not rows:
                 self._enqueue_reply(source, "No events registered.")
@@ -2131,7 +2133,7 @@ def cmd_events(args, cfg):
         "SELECT e.event_id, e.name, e.start_utc, e.end_utc, "
         "       COUNT(c.id) AS n "
         "FROM events e LEFT JOIN checkins c ON c.event_id = e.event_id "
-        "GROUP BY e.event_id ORDER BY e.start_utc DESC"
+        "GROUP BY e.event_id ORDER BY e.start_utc, e.event_id"
     ).fetchall()
     if not rows:
         print("No events registered.")
