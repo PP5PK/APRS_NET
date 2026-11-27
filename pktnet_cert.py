@@ -55,6 +55,11 @@ def templates_dir_from_config(path):
         "templates"))
 
 
+def eid3(event_id):
+    """Event id shown zero-padded to 3 digits (001)."""
+    return "{:03d}".format(int(event_id))
+
+
 def event_template(default, templates_dir, event_id):
     """Template for one event: <templates_dir>/pktnet_template_<NNN>.png
     (event id zero-padded to 3 digits, e.g. 001) when that file exists,
@@ -62,7 +67,7 @@ def event_template(default, templates_dir, event_id):
     always follows the event (even for old events)."""
     if templates_dir:
         path = os.path.join(templates_dir,
-                            "pktnet_template_{:03d}.png".format(int(event_id)))
+                            "pktnet_template_{}.png".format(eid3(event_id)))
         if os.path.isfile(path):
             return path
     return default
@@ -456,7 +461,7 @@ def main():
     event = get_event(conn, args.event)
     checkins = get_checkins(conn, event["event_id"], args.callsign)
     if not checkins:
-        sys.exit("No check-ins found for event #{}.".format(event["event_id"]))
+        sys.exit("No check-ins found for event #{}.".format(eid3(event["event_id"])))
 
     # --template wins; otherwise the event's own template, then the default.
     template = explicit_template or event_template(
@@ -488,7 +493,7 @@ def main():
 
     conn.close()
     print("Generated {} certificate(s) for event #{} ({}).".format(
-        made, event["event_id"], event["name"]))
+        made, eid3(event["event_id"]), event["name"]))
 
 
 if __name__ == "__main__":

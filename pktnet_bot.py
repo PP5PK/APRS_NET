@@ -513,6 +513,14 @@ def load_config(path):
 # Database
 # --------------------------------------------------------------------------- #
 
+def eid3(event_id):
+    """Event id shown zero-padded to 3 digits (001); the DB keeps a plain integer."""
+    try:
+        return "{:03d}".format(int(event_id))
+    except (TypeError, ValueError):
+        return str(event_id)
+
+
 def init_db(path):
     """Open the SQLite database, creating the schema on first run."""
     directory = os.path.dirname(path)
@@ -1463,7 +1471,7 @@ class PktNetBot:
                 self._enqueue_reply(source, "No active net to stop.")
                 return
             end_event(conn, event["event_id"], now_iso)
-            LOG.info("Net #%s stopped by %s", event["event_id"], source)
+            LOG.info("Net #%s stopped by %s", eid3(event["event_id"]), source)
             self._enqueue_reply(source, "Net stopped: {}".format(event["name"]))
             return
 
@@ -1472,7 +1480,7 @@ class PktNetBot:
                 self._enqueue_reply(source, "No active net to pause.")
                 return
             set_event_status(conn, event["event_id"], "paused")
-            LOG.info("Net #%s paused by %s", event["event_id"], source)
+            LOG.info("Net #%s paused by %s", eid3(event["event_id"]), source)
             self._enqueue_reply(source, "Net paused: {}".format(event["name"]))
             return
 
@@ -1481,7 +1489,7 @@ class PktNetBot:
                 self._enqueue_reply(source, "No paused net to resume.")
                 return
             set_event_status(conn, event["event_id"], "open")
-            LOG.info("Net #%s resumed by %s", event["event_id"], source)
+            LOG.info("Net #%s resumed by %s", eid3(event["event_id"]), source)
             self._enqueue_reply(source, "Net resumed: {}".format(event["name"]))
             return
 
@@ -1506,7 +1514,7 @@ class PktNetBot:
                 return
             set_event_end(conn, event["event_id"], new_end.isoformat())
             LOG.info("Net #%s end time changed by %s: %s -> %s (arg=%r)",
-                     event["event_id"], source, event["end_utc"],
+                     eid3(event["event_id"]), source, event["end_utc"],
                      new_end.isoformat(), arg)
             verb = "extended" if new_end > cur_end else "shortened"
             if new_end.date() == cur_end.date():
@@ -1583,10 +1591,10 @@ class PktNetBot:
         reply = template.format(time=hhmm, call=source, event=event["name"])
         if is_new:
             LOG.info("Logged %s into event #%s (%s)",
-                     source, event["event_id"], event["name"])
+                     source, eid3(event["event_id"]), event["name"])
         else:
             LOG.info("%s already logged into event #%s",
-                     source, event["event_id"])
+                     source, eid3(event["event_id"]))
         self._enqueue_reply(source, reply)
 
         # Offer a certificate on a first-time check-in.
@@ -2026,7 +2034,7 @@ def cmd_addevent(args, cfg):
     conn.commit()
     eid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
     print("Event #{} created: {} ({} -> {})".format(
-        eid, args.name, start.isoformat(), end.isoformat()))
+        eid3(eid), args.name, start.isoformat(), end.isoformat()))
     conn.close()
 
 
@@ -2052,9 +2060,9 @@ def cmd_endevent(args, cfg):
     now_iso = datetime.now(timezone.utc).isoformat()
     row = end_event(conn, eid, now_iso)
     if row is None:
-        print("Event #{} not found.".format(eid))
+        print("Event #{} not found.".format(eid3(eid)))
     else:
-        print("Event #{} ended now: {}".format(eid, row["name"]))
+        print("Event #{} ended now: {}".format(eid3(eid), row["name"]))
     conn.close()
 
 
@@ -2067,7 +2075,7 @@ def cmd_editevent(args, cfg):
     row = conn.execute("SELECT * FROM events WHERE event_id = ?",
                        (eid,)).fetchone()
     if row is None:
-        print("Event #{} not found.".format(eid))
+        print("Event #{} not found.".format(eid3(eid)))
         return
 
     new_name = args.name.strip() if args.name else None
@@ -2088,11 +2096,12 @@ def cmd_editevent(args, cfg):
 
     if new_name is not None:
         set_event_name(conn, eid, new_name)
-        print("Event #{} renamed: {} -> {}".format(eid, row["name"], new_name))
+        print("Event #{} renamed: {} -> {}".format(
+            eid3(eid), row["name"], new_name))
     if new_end is not None:
         set_event_end(conn, eid, new_end.isoformat())
         print("Event #{} end time changed: {} -> {}".format(
-            eid, row["end_utc"], new_end.isoformat()))
+            eid3(eid), row["end_utc"], new_end.isoformat()))
     conn.close()
 
 
@@ -2101,18 +2110,18 @@ def cmd_delevent(args, cfg):
     row = conn.execute("SELECT * FROM events WHERE event_id = ?",
                        (args.event_id,)).fetchone()
     if row is None:
-        print("Event #{} not found.".format(args.event_id))
+        print("Event #{} not found.".format(eid3(args.event_id)))
         return
     n = count_checkins(conn, args.event_id)
     if not args.yes:
         ans = input("Delete event #{} '{}' and its {} check-in(s)? [y/N] "
-                    .format(args.event_id, row["name"], n))
+                    .format(eid3(args.event_id), row["name"], n))
         if ans.strip().lower() not in ("y", "yes"):
             print("Aborted.")
             return
     delete_event(conn, args.event_id)
     print("Deleted event #{} ({} check-in(s) removed).".format(
-        args.event_id, n))
+        eid3(args.event_id), n))
     conn.close()
 
 
@@ -2128,8 +2137,8 @@ def cmd_events(args, cfg):
         print("No events registered.")
         return
     for r in rows:
-        print("#{:<4} {:<28} {} -> {}  ({} check-ins)".format(
-            r["event_id"], r["name"], r["start_utc"], r["end_utc"], r["n"]))
+        print("#{} {:<28} {} -> {}  ({} check-ins)".format(
+            eid3(r["event_id"]), r["name"], r["start_utc"], r["end_utc"], r["n"]))
     conn.close()
 
 
@@ -2150,7 +2159,7 @@ def cmd_checkins(args, cfg):
         "WHERE event_id = ? ORDER BY ts_utc",
         (eid,),
     ).fetchall()
-    print("Event #{}: {} check-in(s)".format(eid, len(rows)))
+    print("Event #{}: {} check-in(s)".format(eid3(eid), len(rows)))
     for r in rows:
         print("  {:<10} {}  {}".format(
             r["callsign"], r["ts_utc"], r["message"] or ""))
@@ -2245,7 +2254,7 @@ def main():
         epilog="Examples:\n"
                "  pktnet_bot.py endevent      # ends the active/most "
                "recent event\n"
-               "  pktnet_bot.py endevent 5    # ends event #5 specifically")
+               "  pktnet_bot.py endevent 5    # ends event #005 specifically")
     p_end.add_argument("event_id", nargs="?", type=int,
                        help="event id (defaults to the active/most recent event)")
 
@@ -2263,7 +2272,7 @@ def main():
                "  pktnet_bot.py editevent --name \"PKTNET Leonids\"   # "
                "rename the active event\n"
                "  pktnet_bot.py editevent 5 --name \"PKTNET #5\"      # "
-               "rename event #5\n"
+               "rename event #005\n"
                "  pktnet_bot.py editevent --extend 30     # push the end "
                "30 min later\n"
                "  pktnet_bot.py editevent --extend -15    # pull the end "
@@ -2306,7 +2315,7 @@ def main():
                     "timestamp (UTC), in the order they checked in.",
         epilog="Examples:\n"
                "  pktnet_bot.py checkins      # most recent event\n"
-               "  pktnet_bot.py checkins 3    # event #3 specifically")
+               "  pktnet_bot.py checkins 3    # event #003 specifically")
     p_ck.add_argument("event_id", nargs="?", type=int,
                       help="event id (defaults to the most recent event)")
 
