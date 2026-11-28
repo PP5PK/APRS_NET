@@ -304,6 +304,7 @@ contains your passcode.
 | `net` | `admin_calls` | *(empty)* | Callsigns allowed to send admin remote-control commands (matched by base call, SSID ignored). Empty disables admin commands. |
 | `net` | `ignore_calls` | `QRX ANSRVR WLNK-1` | Callsigns to never respond to (automated APRS services), to avoid message loops. |
 | `net` | `rate_limit_per_min` | `10` | Mute a sender that exceeds this many messages/minute (loop/flood protection). `0` disables. |
+| `net` | `dedup_window_sec` | `5` | Ignore a numbered message (same sender, addressee, msgno and text) delivered again within this many seconds (APRS-IS duplicates): no second ACK, no second reply. `0` disables. |
 | `net` | `rate_cooldown_min` | `10` | How long a rate-limited sender stays muted, in minutes. |
 | `net` | `paused_text` | `PKTNET under maintenance...` | Reply sent to check-ins while the net is paused. |
 | `net` | `checkin_hint_pt`, `checked_text_pt`, `confirm_text_pt`, `dup_text_pt`, `closed_text_pt`, `paused_text_pt` | *(built-in Portuguese)* | Portuguese wording for the six rows above, used automatically for a PP-PY callsign - no need to set these unless you want to change the wording; each is independent of its English counterpart. |

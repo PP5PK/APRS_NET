@@ -64,6 +64,11 @@ ignore_calls = QRX ANSRVR WLNK
 rate_limit_per_min = 10
 rate_cooldown_min = 10
 
+# Ignore a numbered message repeated within this many seconds (APRS-IS
+# sometimes delivers the same packet twice): the copy gets no second ACK and
+# no second reply. 0 disables.
+dedup_window_sec = 5
+
 [room]
 # Optional group-chat room. Users send a message to this callsign; anything a
 # member sends is relayed to all other members. Leave room_call empty to

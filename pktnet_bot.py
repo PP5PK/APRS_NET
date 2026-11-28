@@ -428,6 +428,10 @@ def load_config(path):
         "rate_limit_per_min": cfg.getint("net", "rate_limit_per_min",
                                          fallback=10),
         "rate_cooldown_min": cfg.getint("net", "rate_cooldown_min", fallback=10),
+        # Seconds during which a message with the same sender, addressee,
+        # message number and text is treated as a duplicate and ignored
+        # (APRS-IS sometimes delivers the same packet twice). 0 disables.
+        "dedup_window_sec": cfg.getint("net", "dedup_window_sec", fallback=5),
         "checkin_keyword": cfg.get("net", "checkin_keyword",
                                    fallback="CHECK").upper().strip(),
         "checkin_hint": cfg.get("net", "checkin_hint",
@@ -920,6 +924,8 @@ class PktNetBot:
         self._out_seq = 0
         # pending[(to_call, msgno)] = {"line": str, "attempts": int, "next": float}
         self.pending = {}
+        # Recently handled inbound messages: key -> monotonic time (dedup).
+        self._seen_msgs = {}
         # Earliest wall-clock time the next NEW reply may first transmit, used to
         # space the reply after its ACK and to space consecutive replies.
         self._tx_gate = 0.0
@@ -1082,6 +1088,22 @@ class PktNetBot:
             return True
         return False
 
+    def _is_duplicate(self, source, addressee, text, msgno):
+        """True if this exact numbered message (same sender, addressee, msgno
+        and text) was already handled within dedup_window_sec. Covers APRS-IS
+        delivering the same packet twice."""
+        window = self.cfg["dedup_window_sec"]
+        if window <= 0 or not msgno:
+            return False
+        now = time.monotonic()
+        for k in [k for k, t in self._seen_msgs.items() if now - t > window]:
+            del self._seen_msgs[k]
+        key = (source, addressee, msgno, text)
+        if key in self._seen_msgs:
+            return True
+        self._seen_msgs[key] = now
+        return False
+
     def _handle_line(self, line):
         if line.startswith("#"):
             return
@@ -1116,6 +1138,13 @@ class PktNetBot:
         m = ACK_RE.match(text.strip())
         if m:
             self._clear_pending(source, m.group(2))
+            return
+
+        # Same numbered message delivered twice by APRS-IS: the sender only
+        # transmitted it once, so drop the copy (no second ACK, no second reply).
+        if self._is_duplicate(source, addressee, text, msgno):
+            LOG.info("Duplicate message from %s to %s (msgno=%s) ignored",
+                     source, addressee, msgno)
             return
 
         # Anti-flood: stop feeding a sender that is looping/spamming us.
