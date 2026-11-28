@@ -61,7 +61,7 @@ def eid3(event_id):
 
 
 def event_template(default, templates_dir, event_id):
-    """Template for one event: <templates_dir>/pktnet_template_<NNN>.png
+    """Template for one event: <templates_dir>/pktnet_template_<event_id>.png
     (event id zero-padded to 3 digits, e.g. 001) when that file exists,
     otherwise `default`. Chosen when the certificate is generated, so it
     always follows the event (even for old events)."""
